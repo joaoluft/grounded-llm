@@ -74,8 +74,21 @@ npm test
 2. Fornecer `context`/`message` propositalmente maior que `maxContextTokens`.
    **Esperado**: `ContextTooLargeError`, sem chamar o modelo.
 
+### Cenário 7 — Personalização via identity/rules em todos os componentes (US4)
+
+1. Construir cada um dos três componentes (`GroundedGenerator`, `GroundedEnricher`,
+   `GroundedExtractor`) com `identity` e `rules` configurados.
+2. Fazer uma chamada em cada um.
+3. **Esperado**: a mensagem `system` enviada ao modelo contém, nesta ordem: as
+   instruções internas de ancoragem do componente, depois `identity`, depois
+   `rules`.
+4. Repetir sem configurar `identity`/`rules`.
+   **Esperado**: nenhuma seção adicional aparece na mensagem `system` — comportamento
+   idêntico ao anterior à introdução desta capacidade.
+
 ## Critério de aceite do quickstart
 
-Os 6 cenários acima devem passar como testes automatizados (`vitest`) antes de
-considerar a feature pronta para revisão, cobrindo SC-101 a SC-106 e confirmando
-ausência de regressão no `GroundedGenerator` (SC-105).
+Os 7 cenários acima devem passar como testes automatizados (`vitest`) antes de
+considerar a feature pronta para revisão, cobrindo SC-101 a SC-106, SC-401, SC-402, e
+confirmando ausência de regressão no `GroundedGenerator` (SC-105) e nos demais
+componentes (SC-402).

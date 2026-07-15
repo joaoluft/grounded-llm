@@ -43,14 +43,15 @@ export class GroundedGenerator extends GroundedCall {
     }
 
     const userPrompt = this.buildUserPrompt(request);
-    this.assertContextWithinLimit(SYSTEM_PROMPT + userPrompt);
+    const systemPrompt = this.buildSystemPrompt(SYSTEM_PROMPT);
+    this.assertContextWithinLimit(systemPrompt + userPrompt);
 
     const output = (await this.callModel({
       model: this.model,
       temperature: this.temperature,
       response_format: zodResponseFormat(groundedGenerationSchema, "grounded_generation"),
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
     })) as GroundedGenerationOutput;

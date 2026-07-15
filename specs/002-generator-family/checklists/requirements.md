@@ -36,3 +36,8 @@
   - FR-206 (forma do fallback do `GroundedExtractor`): objeto completo (`fallbackValue`) quando nenhum campo é extraível; campos individuais viram `null` em extração parcial.
   - FR-211/FR-212 (extração parcial): novo parâmetro de configuração `strict` (booleano, default `false`) — não-estrito aceita extração parcial; estrito exige todos os campos ou aciona o fallback do objeto inteiro.
 - Nenhum item pendente. Pronto para `/speckit-plan`.
+- **Atualização retroativa (pós-implementação)**: adicionada User Story 4 (P2) —
+  `identity`/`rules` opcionais em todos os três componentes (FR-401 a FR-404,
+  SC-401, SC-402) — implementada diretamente por acordo do usuário, documentada
+  retroativamente em spec.md/plan.md/research.md/data-model.md/contracts/tasks.md.
+  Checklist revalidado: nenhum item volta a falhar com a adição.

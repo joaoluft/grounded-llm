@@ -20,6 +20,10 @@ export interface GroundedExtractionConfig<Fields extends z.ZodRawShape> {
   model?: string;
   temperature?: number;
   maxContextTokens?: number;
+  /** Optional developer-supplied role/objective for this call, appended after the built-in instructions. */
+  identity?: string;
+  /** Optional developer-supplied rules for this call, appended after the built-in instructions. */
+  rules?: string;
 }
 
 export interface GroundedExtractionResult<Fields extends z.ZodRawShape> {
@@ -68,14 +72,15 @@ export class GroundedExtractor<Fields extends z.ZodRawShape> extends GroundedCal
     }
 
     const userPrompt = `Message:\n${request.message}`;
-    this.assertContextWithinLimit(SYSTEM_PROMPT_PREFIX + userPrompt);
+    const systemPrompt = this.buildSystemPrompt(SYSTEM_PROMPT_PREFIX);
+    this.assertContextWithinLimit(systemPrompt + userPrompt);
 
     const output = (await this.callModel({
       model: this.model,
       temperature: this.temperature,
       response_format: this.responseFormat,
       messages: [
-        { role: "system", content: SYSTEM_PROMPT_PREFIX },
+        { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
     })) as z.infer<typeof this.schema>;

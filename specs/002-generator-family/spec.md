@@ -56,12 +56,30 @@ Um desenvolvedor que já usa o `GroundedGenerator` se beneficia de uma melhoria 
 
 ---
 
+### User Story 4 - Personalizar o comportamento do modelo em qualquer componente da família (Priority: P2)
+
+Um desenvolvedor que já usa qualquer um dos três componentes (`GroundedGenerator`, `GroundedEnricher`, `GroundedExtractor`) quer personalizar como o modelo se comporta naquela chamada específica — por exemplo, definindo que o modelo assume o papel de "assistente de suporte da Acme Corp" (identidade), ou aplicando regras adicionais de tom/estilo (ex.: "responda sempre em tom formal") — sem que isso comprometa as garantias de ancoragem/anti-alucinação já estabelecidas pela lib.
+
+**Why this priority**: É uma capacidade transversal aos três componentes que aumenta a adequação da lib a chatbots comerciais reais (que quase sempre têm uma persona e regras de tom próprias), mas não é bloqueante para o uso básico de nenhum dos três — por isso prioridade P2, entregável depois das capacidades centrais (US1, US2) e do ajuste (US3).
+
+**Independent Test**: Pode ser testado configurando qualquer um dos três componentes com uma identidade e/ou regras customizadas, e verificando que essas instruções chegam à chamada do modelo como uma seção adicional, sempre posicionada depois das instruções internas de ancoragem/anti-alucinação do componente.
+
+**Acceptance Scenarios**:
+
+1. **Given** um componente configurado com uma identidade customizada, **When** uma chamada é feita, **Then** a identidade é incluída nas instruções enviadas ao modelo, posicionada depois das instruções internas de ancoragem do componente.
+2. **Given** um componente configurado com regras customizadas, **When** uma chamada é feita, **Then** as regras são incluídas nas instruções enviadas ao modelo, posicionada depois das instruções internas de ancoragem do componente (e depois da identidade, quando ambas são fornecidas).
+3. **Given** um componente sem identidade nem regras configuradas, **When** uma chamada é feita, **Then** o comportamento é idêntico ao que existia antes desta capacidade (nenhuma seção adicional é incluída).
+
+---
+
 ### Edge Cases
 
 - O que acontece quando o texto-base fornecido ao `GroundedEnricher` está vazio? O componente deve tratar isso como uma solicitação inválida (não há o que enriquecer), distinta de contexto insuficiente — rejeitado imediatamente, sem envolver `fallbackValue` (FR-110).
 - O que acontece quando o contexto fornecido ao `GroundedEnricher` está vazio ou em branco? Tratado como insuficiente para enriquecimento — o texto-base é retornado inalterado (FR-106), não o `fallbackValue`. O que acontece quando a mensagem do usuário fornecida ao `GroundedExtractor` está vazia ou em branco? Tratado como informação insuficiente para qualquer campo — aciona o `fallbackValue` (objeto completo, FR-206), mesmo comportamento equivalente ao contexto vazio já estabelecido para o `GroundedGenerator`.
 - O que acontece quando o desenvolvedor não configura um valor de fallback para o `GroundedEnricher` ou `GroundedExtractor`? Não é permitido: fallback explícito é obrigatório na configuração de ambos os componentes, assim como no `GroundedGenerator`.
 - O que acontece quando a mensagem do usuário fornecida ao `GroundedExtractor` contém informação parcial (preenche alguns campos do schema definido pelo desenvolvedor, mas não todos)? Por padrão (modo não-estrito), o componente retorna os campos extraíveis e marca os demais como ausentes/nulos, sem acionar o fallback do objeto inteiro. Se o desenvolvedor configurar o modo estrito (FR-211), qualquer campo ausente aciona o `fallbackValue` do objeto completo.
+- O que acontece se as regras customizadas (`rules`) do desenvolvedor conflitarem com as instruções internas de ancoragem/anti-alucinação (ex.: uma regra que diz "sempre responda, mesmo sem contexto suficiente")? As instruções internas de ancoragem MUST prevalecer — `identity`/`rules` são posicionadas e enquadradas como complementares, nunca como substitutas das regras de grounding (FR-403).
+- O que acontece quando `identity` e/ou `rules` não são configurados? Nenhuma seção adicional é incluída no prompt enviado ao modelo — o comportamento é idêntico ao que existia antes desta capacidade (FR-404).
 
 ## Requirements *(mandatory)*
 
@@ -100,6 +118,13 @@ Um desenvolvedor que já usa o `GroundedGenerator` se beneficia de uma melhoria 
 - **FR-301**: Cada campo da saída estruturada do `GroundedGenerator` (fatos extraídos, decisão de suficiência, raciocínio, resposta final) MUST incluir uma descrição explícita, legível pelo modelo, do seu propósito — em particular, a decisão de suficiência MUST ser descrita como "se o contexto fornecido é suficiente para responder com segurança, sem completar com conhecimento externo."
 - **FR-302**: Este ajuste MUST preservar integralmente o comportamento observável já validado do `GroundedGenerator` (FR-001 a FR-012 da feature 001) — nenhuma regressão é permitida.
 
+#### Personalização do comportamento do modelo (transversal aos três componentes)
+
+- **FR-401**: Todos os três componentes (`GroundedGenerator`, `GroundedEnricher`, `GroundedExtractor`) MUST aceitar, no momento da construção, um parâmetro opcional `identity` descrevendo o papel/objetivo do modelo naquela chamada.
+- **FR-402**: Todos os três componentes MUST aceitar, no momento da construção, um parâmetro opcional `rules` descrevendo regras adicionais para restringir/orientar a chamada (ex.: tom, estilo).
+- **FR-403**: Quando fornecidos, `identity` e `rules` MUST ser incluídos nas instruções enviadas ao modelo como uma seção adicional, posicionada sempre depois das instruções internas de ancoragem/anti-alucinação de cada componente — nunca antes, e nunca substituindo-as. Quando ambos são fornecidos, `identity` MUST preceder `rules`.
+- **FR-404**: Na ausência de `identity` e `rules`, o comportamento de cada componente MUST ser idêntico ao definido antes desta capacidade existir — nenhuma regressão é permitida nos comportamentos já especificados em FR-101 a FR-302.
+
 ### Key Entities
 
 - **Solicitação de Enriquecimento**: Representa uma chamada ao `GroundedEnricher`, contendo o texto-base a enriquecer e o contexto recuperado.
@@ -108,6 +133,7 @@ Um desenvolvedor que já usa o `GroundedGenerator` se beneficia de uma melhoria 
 - **Configuração do Componente (GroundedExtractor)**: Inclui, além do fallback obrigatório (objeto completo) e da definição de campos, um modo estrito (booleano, default `false`) que determina se extração parcial é aceita ou se todos os campos precisam ser extraídos com segurança para o resultado não cair no fallback.
 - **Solicitação de Extração**: Representa uma chamada ao `GroundedExtractor`, contendo a mensagem do usuário a ser processada.
 - **Resultado de Extração**: Saída do `GroundedExtractor`, contendo os valores extraídos (completos, parciais com campos ausentes, ou o fallback do objeto inteiro), indicação de uso de fallback, e raciocínio.
+- **Personalização de Comportamento**: `identity` (papel/objetivo do modelo) e `rules` (regras adicionais), ambos opcionais, configuráveis na construção de qualquer um dos três componentes — compartilhados estruturalmente entre eles, não específicos de nenhum.
 
 ## Success Criteria *(mandatory)*
 
@@ -119,6 +145,8 @@ Um desenvolvedor que já usa o `GroundedGenerator` se beneficia de uma melhoria 
 - **SC-104**: Em um conjunto de teste com mensagens de usuário sem informação suficiente para nenhum campo definido, o `GroundedExtractor` aciona o fallback do objeto completo em pelo menos 95% dos casos, em vez de inventar valores.
 - **SC-105**: 100% dos casos de teste já existentes do `GroundedGenerator` continuam passando após o ajuste de descrições de campo, sem nenhuma regressão de comportamento.
 - **SC-106**: Em um conjunto de teste com mensagens que preenchem apenas parte dos campos definidos, o `GroundedExtractor` em modo não-estrito (default) retorna os campos extraíveis sem acionar o fallback do objeto inteiro em 100% dos casos; em modo estrito, o mesmo conjunto aciona o fallback do objeto inteiro em 100% dos casos.
+- **SC-401**: Em um conjunto de teste cobrindo os três componentes configurados com `identity` e/ou `rules`, 100% dos casos confirmam que essas instruções aparecem nas instruções enviadas ao modelo, sempre posicionadas depois das instruções internas de ancoragem de cada componente.
+- **SC-402**: 100% dos casos de teste já existentes dos três componentes (sem `identity`/`rules` configurados) continuam passando após a introdução desta capacidade, sem nenhuma regressão de comportamento.
 
 ## Assumptions
 
@@ -127,3 +155,4 @@ Um desenvolvedor que já usa o `GroundedGenerator` se beneficia de uma melhoria 
 - A definição de campos de extração do `GroundedExtractor` é fornecida pelo desenvolvedor no momento da construção do componente (não dinamicamente por chamada) — decisão análoga à forma como o fallback é configurado nos outros componentes.
 - O `GroundedDecider` (decisão fechada de ação com confiança via logprob) permanece uma feature futura separada e não é afetado nem implementado por esta feature.
 - O `fallbackValue` do `GroundedEnricher` é mantido obrigatório na construção por consistência de API com os demais componentes da família, mesmo não sendo invocado por nenhum fluxo de sucesso definido nesta feature (ver FR-105/FR-106/FR-110) — reservado para uso futuro, não um requisito morto por engano.
+- `identity` e `rules` (FR-401 a FR-404) são strings de texto livre — a lib não valida nem restringe seu conteúdo; a responsabilidade de garantir que não contradigam abertamente as regras de grounding (na intenção do desenvolvedor) é do próprio desenvolvedor. A lib garante apenas a posição (sempre depois das instruções internas) e o enquadramento (como complementares, nunca como substitutas).

@@ -142,6 +142,34 @@ under `src/generators/`, `tests/unit/generators/`, `tests/contract/generators/`.
 
 ---
 
+## Phase 7: User Story 4 - Personalizar o comportamento do modelo em qualquer componente da família (Priority: P2)
+
+**Goal**: All three components accept optional `identity`/`rules` at construction, appended after each component's built-in grounding instructions — never overriding them.
+
+**Independent Test**: Configure any of the three components with `identity` and/or `rules`; verify these appear in the system message sent to the model, always after the component's built-in instructions, with `identity` before `rules` when both are present.
+
+**Note**: This phase was implemented directly, by explicit user agreement, given its small and well-contained scope (one shared config extension across three already-implemented components) — without a prior formal `/speckit-clarify`/`/speckit-plan`/`/speckit-tasks` pass. These tasks were added to this file retroactively to keep it in sync with what was actually built (see research.md's "Nota de processo").
+
+### Tests for User Story 4 ⚠️
+
+- [X] T038 [P] [US4] Unit tests for `GroundedCall.buildSystemPrompt` in `tests/unit/core/GroundedCall.test.ts`: base prompt unchanged when `identity`/`rules` are omitted; `identity` appended after the base prompt; `rules` appended after the base prompt; both appended in order (base → identity → rules) when present together
+- [X] T039 [US4] Unit test for `GroundedGenerator` in `tests/unit/generators/GroundedGenerator.test.ts`: constructed with `identity`/`rules`, asserts both appear in the system message sent to the model, after the built-in instructions (depends on T038)
+- [X] T040 [US4] Unit test for `GroundedEnricher` in `tests/unit/generators/GroundedEnricher.test.ts`: same assertion pattern as T039 (depends on T038)
+- [X] T041 [US4] Unit test for `GroundedExtractor` in `tests/unit/generators/GroundedExtractor.test.ts`: same assertion pattern as T039 (depends on T038)
+
+### Implementation for User Story 4
+
+- [X] T042 [US4] Add `identity?: string` and `rules?: string` to `GroundedCallConfig` in `src/core/types.ts` (shared by `GroundedGenerator`/`GroundedEnricher`) (depends on T038)
+- [X] T043 [US4] Implement `protected buildSystemPrompt(basePrompt: string): string` in `src/core/GroundedCall.ts`: stores `identity`/`rules` from config, appends them (identity then rules) as additional sections after `basePrompt`, framed as non-overriding (depends on T042)
+- [X] T044 [US4] Wire `this.buildSystemPrompt(SYSTEM_PROMPT)` into the model call in `src/generators/GroundedGenerator.ts`, replacing the raw `SYSTEM_PROMPT` constant (depends on T043)
+- [X] T045 [US4] Wire `this.buildSystemPrompt(SYSTEM_PROMPT)` into the model call in `src/generators/GroundedEnricher.ts`, replacing the raw `SYSTEM_PROMPT` constant (depends on T043)
+- [X] T046 [US4] Add `identity?: string`/`rules?: string` to `GroundedExtractionConfig` in `src/generators/GroundedExtractor.ts`, and wire `this.buildSystemPrompt(SYSTEM_PROMPT_PREFIX)` into its model call (depends on T043)
+- [X] T047 [P] [US4] Update `README.md` (both Português and English sections) documenting `identity`/`rules` for all three components, in the shared "Generators" overview and in each component's config comment (depends on T044, T045, T046)
+
+**Checkpoint**: All four user stories are independently functional; 68/68 tests passing across the full suite (feature 001 + feature 002), zero regression.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -152,14 +180,18 @@ under `src/generators/`, `tests/unit/generators/`, `tests/contract/generators/`.
 - **User Story 2 (Phase 4)**: Depends on Foundational. Fully independent of US1/US3 (different files).
 - **User Story 3 (Phase 5)**: Depends on Foundational. Fully independent of US1/US2 (touches only `schema.ts` and the existing feature-001 test file).
 - **Polish (Phase 6)**: Depends on US1 and US2 (T029 needs both classes to exist); T031/T037 depend on all three stories being complete.
+- **User Story 4 (Phase 7)**: Depends on US1, US2, and (for its `GroundedCall` change) the Foundational base — it touches `core/GroundedCall.ts`/`core/types.ts` (shared, previously unchanged by this feature) plus all three generator classes, so it necessarily comes after US1/US2/US3 exist.
 
 ### User Story Dependencies
 
 - **US1 (P1)**: Independent — new files only (`GroundedEnricher.ts`, `GroundedEnricher.schema.ts`, its test files).
 - **US2 (P1)**: Independent — new files only (`GroundedExtractor.ts`, `GroundedExtractor.schema.ts`, its test files).
 - **US3 (P3)**: Independent — touches only `src/generators/schema.ts` and the existing `GroundedGenerator.schema.test.ts`.
+- **US4 (P2)**: Depends on US1/US2/US3 (or at least US1/US2) already existing — it's the only story that touches shared `core/` files plus all three generator files. Not parallelizable with the others in practice.
 
-Unlike feature 001 (where US1/US2 shared one file), all three stories here touch **disjoint files** and can be implemented fully in parallel by up to three developers.
+Unlike feature 001 (where US1/US2 shared one file), US1/US2/US3 here touch **disjoint
+files** and can be implemented fully in parallel by up to three developers. US4 is the
+exception — it's inherently cross-cutting and must come after the others.
 
 ### Within Each User Story
 

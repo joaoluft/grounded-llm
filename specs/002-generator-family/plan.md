@@ -8,7 +8,7 @@
 
 ## Summary
 
-Três mudanças na lib `grounded-llm`, todas reaproveitando a base já existente
+Quatro mudanças na lib `grounded-llm`, todas reaproveitando a base já existente
 (`core/GroundedCall.ts`, `core/types.ts`): (1) adicionar `.describe()` aos campos do
 schema estruturado do `GroundedGenerator`, sem alterar comportamento; (2) novo
 componente `GroundedEnricher`, que enriquece um texto-base com contexto recuperado,
@@ -16,7 +16,10 @@ retornando o texto-base inalterado (não um fallback string) quando o contexto �
 insuficiente; (3) novo componente `GroundedExtractor`, que extrai um objeto estruturado
 com campos definidos pelo desenvolvedor a partir da mensagem do usuário, com fallback
 como objeto completo e um modo `strict` (default `false`) controlando se extração
-parcial é aceita.
+parcial é aceita; (4) **(US4, adicionada retroativamente após US1-US3 já implementadas)**
+suporte a `identity`/`rules` opcionais em todos os três componentes, permitindo ao
+desenvolvedor customizar papel/objetivo e regras adicionais do modelo naquela chamada,
+sempre anexados depois das instruções internas de ancoragem/anti-alucinação.
 
 ## Technical Context
 
@@ -76,6 +79,15 @@ e a reutilização de `GroundedCallResult` para o `GroundedEnricher` (em vez de 
 próprio) reforça a consistência de observabilidade (princípio 8) entre os componentes
 da lib. Gate PASS mantido.
 
+**Re-check pós-US4 (retroativo)**: a adição de `identity`/`rules` (FR-401 a FR-404)
+não viola nenhum princípio — em particular, o princípio 2 ("nunca gerar sem
+contenção") permanece intacto porque `identity`/`rules` são texto livre *anexado*
+como seção adicional do system prompt, sempre depois das instruções internas de
+ancoragem, nunca substituindo-as ou sendo interpretado como uma nova fonte de
+verdade para extração/suficiência. `buildSystemPrompt()` é o único ponto que decide
+a ordem de composição, garantindo essa propriedade de forma centralizada. Gate PASS
+mantido.
+
 ## Project Structure
 
 ### Documentation (this feature)
@@ -94,17 +106,21 @@ specs/002-generator-family/
 
 ```text
 src/
-├── core/                        # Inalterado nesta feature (GroundedCall, types, errors, contextWindow)
+├── core/
+│   ├── GroundedCall.ts            # US4 (retroativo): + buildSystemPrompt(), + identity/rules fields
+│   └── types.ts                   # US4 (retroativo): + identity?/rules? em GroundedCallConfig
 └── generators/
-    ├── schema.ts                 # Ajuste: .describe() nos campos (FR-301)
-    ├── GroundedGenerator.ts       # Inalterado além do import do schema ajustado
-    ├── GroundedEnricher.ts        # Novo
+    ├── schema.ts                  # Ajuste: .describe() nos campos (FR-301)
+    ├── GroundedGenerator.ts       # + uso de buildSystemPrompt() (US4), além do schema ajustado
+    ├── GroundedEnricher.ts        # Novo; + uso de buildSystemPrompt() (US4)
     ├── GroundedEnricher.schema.ts # Novo — schema estruturado do enriquecimento
-    ├── GroundedExtractor.ts       # Novo
+    ├── GroundedExtractor.ts       # Novo; + identity/rules em GroundedExtractionConfig (US4)
     └── GroundedExtractor.schema.ts # Novo — construção do schema nullable a partir dos campos do dev
 
 tests/
 ├── unit/
+│   ├── core/
+│   │   └── GroundedCall.test.ts   # US4 (retroativo): + testes de buildSystemPrompt
 │   └── generators/
 │       ├── GroundedEnricher.test.ts
 │       └── GroundedExtractor.test.ts
@@ -116,10 +132,13 @@ tests/
 ```
 
 **Structure Decision**: Mesma estrutura de projeto único da feature 001. Os dois novos
-componentes entram em `src/generators/`, ao lado do `GroundedGenerator` existente,
-reaproveitando `core/GroundedCall.ts` e `core/types.ts` sem alterá-los (ambos já foram
-desenhados na feature 001 para reaproveitamento futuro). Nenhum diretório novo de
-alto nível é criado.
+componentes entram em `src/generators/`, ao lado do `GroundedGenerator` existente.
+**Atualização (US4, retroativa)**: diferente do planejado inicialmente, `core/GroundedCall.ts`
+e `core/types.ts` **foram alterados** nesta feature — adição do método
+`buildSystemPrompt()` e dos campos opcionais `identity`/`rules`, para suportar a
+personalização de comportamento pedida pelo usuário após a implementação inicial (US1-US3).
+Essa mudança é aditiva e retrocompatível (todos os 61 testes anteriores continuam
+passando inalterados). Nenhum diretório novo de alto nível é criado.
 
 ## Complexity Tracking
 

@@ -23,6 +23,13 @@ Entrada na construção (`GroundedCallConfig`, ver `data-model.md`):
 - `temperature` (number) — opcional; default `0`.
 - `maxContextTokens` (number) — opcional. Quando omitido, o componente usa um default derivado
   do limite conhecido do `model` configurado.
+- `identity` (string) — opcional. Papel/objetivo do modelo nesta chamada. **Adicionado pela
+  feature 002** (FR-401), não fazia parte do escopo original desta feature; documentado aqui
+  porque este arquivo é o contrato público autoritativo do componente. Ver
+  `specs/002-generator-family/spec.md` e `contracts/GroundedEnricher.md`/`GroundedExtractor.md`
+  para os detalhes completos.
+- `rules` (string) — opcional. Regras adicionais para esta chamada. **Adicionado pela feature
+  002** (FR-402), mesma nota acima.
 
 O componente não recebe nem depende de nenhum objeto/tipo de terceiros (ex.: LangChain) — apenas
 o client oficial `openai`, usado internamente. Isso permite plugar o `GroundedGenerator` como
@@ -74,6 +81,8 @@ desenvolvedor consumidor.
 7. O componente não mantém estado entre chamadas (sem histórico de conversa); cada chamada é
    independente, e chamadas concorrentes à mesma instância são seguras (sem estado mutável
    compartilhado).
+8. Se `identity`/`rules` forem configurados (feature 002), aparecem nas instruções enviadas ao
+   modelo sempre depois das instruções internas de ancoragem — nunca as substituindo.
 
 ## Fora de escopo deste contrato
 

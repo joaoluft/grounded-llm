@@ -53,6 +53,29 @@ describe("GroundedGenerator - sufficient-context happy path (US1)", () => {
 
     const generator = new GroundedGenerator({ fallbackValue: "I don't know." });
     await generator.generate({ context: "fact", question: "q?" });
+  });
+
+  it("includes the developer's identity/rules in the system message, after the built-in instructions", async () => {
+    mockParsedResponse({
+      extracted_facts: ["fact"],
+      sufficient_context: true,
+      reasoning: "r",
+      final_answer: "a",
+    });
+
+    const generator = new GroundedGenerator({
+      fallbackValue: "I don't know.",
+      identity: "You are the support assistant for Acme Corp.",
+      rules: "Always respond in a formal tone.",
+    });
+    await generator.generate({ context: "fact", question: "q?" });
+
+    const sentSystemMessage = parseMock.mock.calls[0][0].messages[0].content as string;
+    expect(sentSystemMessage).toContain("You are the support assistant for Acme Corp.");
+    expect(sentSystemMessage).toContain("Always respond in a formal tone.");
+    expect(sentSystemMessage.indexOf("You answer questions using ONLY the provided context.")).toBeLessThan(
+      sentSystemMessage.indexOf("You are the support assistant for Acme Corp.")
+    );
 
     expect(parseMock).toHaveBeenCalledWith(
       expect.objectContaining({ temperature: 0 })

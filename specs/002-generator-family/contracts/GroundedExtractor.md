@@ -14,6 +14,7 @@ Entrada na construção (`GroundedExtractionConfig`, ver `data-model.md`):
   aceita.
 - `client`/`apiKey`/`model`/`temperature`/`maxContextTokens` — mesma regra de
   resolução do `GroundedCallConfig` (feature 001).
+- `identity` (string, opcional, FR-401) / `rules` (string, opcional, FR-402).
 
 ## Operação principal: extrair dados
 
@@ -52,6 +53,10 @@ Entrada na construção (`GroundedExtractionConfig`, ver `data-model.md`):
    requisitos pertencem exclusivamente ao futuro `GroundedDecider` (FR-210).
 7. Sem retry automático, stateless entre chamadas, sem redação/mascaramento — mesmas
    regras já estabelecidas para os demais componentes da lib.
+8. Se `identity` e/ou `rules` forem configurados, MUST aparecer nas instruções
+   enviadas ao modelo como seção adicional, sempre depois das instruções internas de
+   extração do componente — `identity` antes de `rules`, quando ambos presentes
+   (FR-401 a FR-404). Na ausência de ambos, nenhuma seção adicional é incluída.
 
 ## Fora de escopo deste contrato
 

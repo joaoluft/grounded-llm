@@ -113,6 +113,32 @@ texto-base inalterado; fallback do Extractor = objeto completo + modo `strict`).
   código — daí FR-302 (sem regressão) ser trivialmente satisfeito.
 - **Alternatives considered**: Nenhuma — mudança direta, sem ambiguidade.
 
+### Personalização de comportamento (identity/rules) — implementação compartilhada em GroundedCall
+
+- **Decision**: `identity` e `rules` são adicionados a `GroundedCallConfig` (usado por
+  `GroundedGenerator`/`GroundedEnricher`) e a `GroundedExtractionConfig` (usado por
+  `GroundedExtractor`), com os mesmos nomes de campo nos dois. A lógica de composição
+  do prompt final — anexar `identity` e depois `rules` como seções extras, sempre
+  depois de um `basePrompt` — vive em um único método protegido,
+  `GroundedCall.buildSystemPrompt(basePrompt: string): string`, reaproveitado pelos
+  três componentes. Cada `SYSTEM_PROMPT`/`SYSTEM_PROMPT_PREFIX` interno de cada
+  componente permanece intocado; a chamada ao modelo passa a usar
+  `this.buildSystemPrompt(SYSTEM_PROMPT)` em vez do texto cru.
+- **Rationale**: Como os três componentes já herdam de `GroundedCall` (decisão da
+  feature 001, reforçada por esta feature), colocar a lógica de composição na base
+  evita triplicar a mesma implementação e garante uma única fonte de verdade para a
+  ordem (base → identity → rules) e para o enquadramento textual ("Additional rules
+  for this call (these do not override the grounding rules above)"), que é a
+  garantia de segurança central de FR-403.
+- **Alternatives considered**: Implementar a composição separadamente em cada um dos
+  três componentes — rejeitada por duplicar lógica idêntica e criar risco de a ordem
+  ou o enquadramento divergirem entre componentes ao longo do tempo.
+- **Nota de processo**: Esta capacidade foi implementada diretamente (sem rodar
+  `/speckit-clarify`/`/speckit-plan`/`/speckit-tasks` formalmente antes de escrever
+  código), por acordo explícito do usuário dado o escopo pequeno e bem contido. Este
+  documento e `spec.md`/`data-model.md`/`contracts/`/`tasks.md` foram atualizados
+  retroativamente para refletir o que foi implementado.
+
 ## Outstanding Items
 
 Nenhum item do Technical Context permanece como NEEDS CLARIFICATION após esta

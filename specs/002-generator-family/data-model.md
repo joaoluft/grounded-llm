@@ -4,7 +4,9 @@
 
 Entidades derivadas do spec (`Key Entities`), descritas de forma agnóstica a
 implementação onde possível. Reaproveita `GroundedCallConfig`/`GroundedCallResult` de
-`core/types.ts` (feature 001) sem alterá-los.
+`core/types.ts` (feature 001) — com uma extensão retroativa (`identity`/`rules`, ver
+seção "Personalização de Comportamento" abaixo), documentada aqui após a
+implementação direta dessa capacidade (ver research.md).
 
 ## GroundedGenerator (ajuste, sem novas entidades)
 
@@ -54,6 +56,8 @@ extrairá.
 | `strict` | boolean | Não | Default `false`. Controla se extração parcial é aceita (FR-211) |
 | `temperature` | number | Não | Default `0` |
 | `maxContextTokens` | number | Não | Mesma regra do `GroundedCallConfig` |
+| `identity` | string | Não | Papel/objetivo do modelo nesta chamada (FR-401); anexado após as instruções internas |
+| `rules` | string | Não | Regras adicionais para esta chamada (FR-402); anexado após `identity`, se ambos fornecidos |
 
 ## ExtractionRequest (Solicitação de Extração)
 
@@ -75,3 +79,19 @@ estruturado, não uma string) — genérico sobre o formato de `fields`.
 Invariante: se `usedFallback = false`, `data` MUST conter apenas valores derivados da
 `message` fornecida (FR-203) — verificado por teste de comportamento, mesma abordagem
 da feature 001 (sem checagem de consistência em tempo de execução).
+
+## Personalização de Comportamento (identity/rules — transversal, FR-401 a FR-404)
+
+Extensão retroativa de `GroundedCallConfig` (feature 001, `core/types.ts`) e de
+`GroundedExtractionConfig` (acima), com os mesmos dois campos opcionais em ambos:
+
+| Campo | Tipo | Obrigatório | Regras |
+|---|---|---|---|
+| `identity` | string | Não | Papel/objetivo do modelo nesta chamada. Quando fornecido, anexado como seção adicional às instruções internas de ancoragem de cada componente, sempre depois delas |
+| `rules` | string | Não | Regras adicionais para restringir/orientar esta chamada. Quando fornecido, anexado depois de `identity` (se ambos presentes), sempre depois das instruções internas de ancoragem |
+
+A composição (`instruções internas → identity → rules`) é feita por um único método
+compartilhado, `GroundedCall.buildSystemPrompt(basePrompt)`, reaproveitado pelos três
+componentes (`GroundedGenerator`, `GroundedEnricher`, `GroundedExtractor`) — ver
+research.md para a decisão de manter essa lógica centralizada na classe base em vez de
+duplicá-la.

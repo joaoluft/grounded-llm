@@ -64,6 +64,25 @@ describe("GroundedExtractor - full extraction success (US2)", () => {
     expect(result.reasoning).toBeTruthy();
     expect(parseMock).toHaveBeenCalledWith(expect.objectContaining({ temperature: 0 }));
   });
+
+  it("includes the developer's identity/rules in the system message, after the built-in instructions", async () => {
+    mockParsedResponse({ name: "Ada Lovelace", email: "ada@example.com", reasoning: "both fields found" });
+
+    const extractor = new GroundedExtractor({
+      fields,
+      fallbackValue,
+      identity: "You are the support assistant for Acme Corp.",
+      rules: "Always respond in a formal tone.",
+    });
+    await extractor.extract({ message: "I'm Ada Lovelace, ada@example.com" });
+
+    const sentSystemMessage = parseMock.mock.calls[0][0].messages[0].content as string;
+    expect(sentSystemMessage).toContain("You are the support assistant for Acme Corp.");
+    expect(sentSystemMessage).toContain("Always respond in a formal tone.");
+    expect(sentSystemMessage.indexOf("You extract structured information")).toBeLessThan(
+      sentSystemMessage.indexOf("You are the support assistant for Acme Corp.")
+    );
+  });
 });
 
 describe("GroundedExtractor - partial extraction, non-strict mode (default, US2)", () => {

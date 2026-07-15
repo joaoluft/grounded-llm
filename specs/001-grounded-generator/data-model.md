@@ -73,6 +73,8 @@ Definida no momento da construção do `GroundedGenerator` (via `core/GroundedCa
 | `fallbackValue` | string | Sim | Sem default implícito; construção falha se ausente (FR-005) |
 | `temperature` | number | Não | Default: `0` (princípio 6 da constitution) |
 | `maxContextTokens` | number | Não | Default derivado do limite conhecido do `model`, quando disponível; usado para o gate de `OperationalError` (FR-011) |
+| `identity` | string | Não | **Adicionado pela feature 002** (FR-401) — papel/objetivo do modelo nesta chamada; anexado após as instruções internas de ancoragem |
+| `rules` | string | Não | **Adicionado pela feature 002** (FR-402) — regras adicionais para esta chamada; anexado depois de `identity`, sempre após as instruções internas |
 
 ## OperationalError (Erro Operacional)
 

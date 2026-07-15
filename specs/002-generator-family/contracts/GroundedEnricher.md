@@ -6,7 +6,8 @@
 
 Mesma forma de `GroundedCallConfig` (ver `core/types.ts`, feature 001):
 `fallbackValue` (obrigatório), `client`/`apiKey`/`model` (opcionais, mesma regra de
-resolução do `GroundedGenerator`), `temperature` (default `0`), `maxContextTokens`.
+resolução do `GroundedGenerator`), `temperature` (default `0`), `maxContextTokens`,
+`identity` (opcional, FR-401), `rules` (opcional, FR-402).
 
 ## Operação principal: enriquecer texto
 
@@ -49,6 +50,11 @@ da feature 001):
    consistentes (determinístico por padrão).
 6. Sem redação/mascaramento de dados sensíveis, sem retry automático, stateless entre
    chamadas — mesmas regras já estabelecidas para o `GroundedGenerator`.
+7. Se `identity` e/ou `rules` forem configurados, MUST aparecer nas instruções
+   enviadas ao modelo como seção adicional, sempre depois das instruções internas de
+   ancoragem/anti-alucinação do componente — `identity` antes de `rules`, quando
+   ambos presentes (FR-401 a FR-404). Na ausência de ambos, nenhuma seção adicional é
+   incluída.
 
 ## Fora de escopo deste contrato
 

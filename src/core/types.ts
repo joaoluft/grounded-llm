@@ -18,6 +18,20 @@ export interface GroundedCallConfig<TFallback = string> {
   temperature?: number;
   /** Default derived from the known limit of `model`, when available (FR-011). */
   maxContextTokens?: number;
+  /**
+   * Optional developer-supplied role/objective for this call (e.g. "You are the
+   * support assistant for Acme Corp"). Appended as an additional system-prompt
+   * section, always after the component's built-in grounding instructions — it
+   * never overrides them.
+   */
+  identity?: string;
+  /**
+   * Optional developer-supplied rules constraining this call (e.g. tone, style,
+   * domain-specific constraints). Appended as an additional system-prompt section,
+   * always after the component's built-in grounding instructions — it never
+   * overrides them.
+   */
+  rules?: string;
 }
 
 export interface GroundedCallResult {

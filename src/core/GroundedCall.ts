@@ -17,6 +17,8 @@ export abstract class GroundedCall<TFallback = string> {
   protected readonly fallbackValue: TFallback;
   protected readonly temperature: number;
   protected readonly maxContextTokens: number;
+  protected readonly identity?: string;
+  protected readonly rules?: string;
 
   constructor(config: GroundedCallConfig<TFallback>) {
     const isEmptyString = typeof config.fallbackValue === "string" && config.fallbackValue.trim().length === 0;
@@ -48,6 +50,24 @@ export abstract class GroundedCall<TFallback = string> {
 
     this.temperature = config.temperature ?? 0;
     this.maxContextTokens = config.maxContextTokens ?? getMaxContextTokens(this.model);
+    this.identity = config.identity;
+    this.rules = config.rules;
+  }
+
+  /**
+   * Appends the developer-supplied `identity`/`rules` (if provided) as additional
+   * sections after `basePrompt`, so they can never override the component's
+   * built-in grounding instructions.
+   */
+  protected buildSystemPrompt(basePrompt: string): string {
+    let prompt = basePrompt;
+    if (this.identity) {
+      prompt += `\n\nYour role for this call:\n${this.identity}`;
+    }
+    if (this.rules) {
+      prompt += `\n\nAdditional rules for this call (these do not override the grounding rules above):\n${this.rules}`;
+    }
+    return prompt;
   }
 
   /** Throws ContextTooLargeError (FR-011) without calling the model. */

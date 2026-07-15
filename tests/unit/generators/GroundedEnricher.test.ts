@@ -56,6 +56,29 @@ describe("GroundedEnricher - sufficient-context happy path (US1)", () => {
 
     expect(parseMock).toHaveBeenCalledWith(expect.objectContaining({ temperature: 0 }));
   });
+
+  it("includes the developer's identity/rules in the system message, after the built-in instructions", async () => {
+    mockParsedResponse({
+      extracted_facts: ["fact"],
+      sufficient_context: true,
+      reasoning: "r",
+      enriched_text: "a",
+    });
+
+    const enricher = new GroundedEnricher({
+      fallbackValue: "N/A",
+      identity: "You are the support assistant for Acme Corp.",
+      rules: "Always respond in a formal tone.",
+    });
+    await enricher.generate({ baseContent: "base", context: "fact" });
+
+    const sentSystemMessage = parseMock.mock.calls[0][0].messages[0].content as string;
+    expect(sentSystemMessage).toContain("You are the support assistant for Acme Corp.");
+    expect(sentSystemMessage).toContain("Always respond in a formal tone.");
+    expect(sentSystemMessage.indexOf("You enrich a base piece of text")).toBeLessThan(
+      sentSystemMessage.indexOf("You are the support assistant for Acme Corp.")
+    );
+  });
 });
 
 describe("GroundedEnricher - insufficient context returns baseContent unchanged (US1, FR-106)", () => {

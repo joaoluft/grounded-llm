@@ -33,6 +33,9 @@ class TestableGroundedCall extends GroundedCall {
   public call(params: any) {
     return this.callModel(params);
   }
+  public getSystemPrompt(base: string) {
+    return this.buildSystemPrompt(base);
+  }
 }
 
 describe("GroundedCall construction", () => {
@@ -140,5 +143,52 @@ describe("GroundedCall context-overflow, technical-failure, and invalid-output g
     const call3 = new TestableGroundedCall({ fallbackValue: "sorry", maxContextTokens: 1 });
     expect(() => call3.assertLimit("a".repeat(100))).toThrow(ContextTooLargeError);
     expect(parseMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("GroundedCall system prompt composition (identity/rules)", () => {
+  beforeEach(() => {
+    process.env["OPENAI_API_KEY"] = "test-key";
+  });
+
+  it("returns the base prompt unchanged when identity/rules are omitted", () => {
+    const call = new TestableGroundedCall({ fallbackValue: "sorry" });
+    expect(call.getSystemPrompt("BASE INSTRUCTIONS")).toBe("BASE INSTRUCTIONS");
+  });
+
+  it("appends the developer's identity after the base prompt", () => {
+    const call = new TestableGroundedCall({
+      fallbackValue: "sorry",
+      identity: "You are the support assistant for Acme Corp.",
+    });
+    const prompt = call.getSystemPrompt("BASE INSTRUCTIONS");
+    expect(prompt.indexOf("BASE INSTRUCTIONS")).toBe(0);
+    expect(prompt).toContain("You are the support assistant for Acme Corp.");
+    expect(prompt.indexOf("BASE INSTRUCTIONS")).toBeLessThan(
+      prompt.indexOf("You are the support assistant for Acme Corp.")
+    );
+  });
+
+  it("appends the developer's rules after the base prompt", () => {
+    const call = new TestableGroundedCall({
+      fallbackValue: "sorry",
+      rules: "Always respond in a formal tone.",
+    });
+    const prompt = call.getSystemPrompt("BASE INSTRUCTIONS");
+    expect(prompt.indexOf("BASE INSTRUCTIONS")).toBeLessThan(prompt.indexOf("Always respond in a formal tone."));
+  });
+
+  it("appends both identity and rules, always after the base grounding instructions", () => {
+    const call = new TestableGroundedCall({
+      fallbackValue: "sorry",
+      identity: "You are the support assistant for Acme Corp.",
+      rules: "Always respond in a formal tone.",
+    });
+    const prompt = call.getSystemPrompt("BASE INSTRUCTIONS");
+    const baseIndex = prompt.indexOf("BASE INSTRUCTIONS");
+    const identityIndex = prompt.indexOf("You are the support assistant for Acme Corp.");
+    const rulesIndex = prompt.indexOf("Always respond in a formal tone.");
+    expect(baseIndex).toBeLessThan(identityIndex);
+    expect(identityIndex).toBeLessThan(rulesIndex);
   });
 });
