@@ -1,0 +1,127 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { z } from "zod";
+import { GroundedExtractor } from "../../../src/generators/GroundedExtractor.js";
+
+const parseMock = vi.fn();
+
+vi.mock("openai", () => {
+  return {
+    default: vi.fn().mockImplementation(() => ({
+      beta: { chat: { completions: { parse: parseMock } } },
+    })),
+  };
+});
+
+function mockParsedResponse(parsed: unknown) {
+  parseMock.mockResolvedValueOnce({
+    choices: [{ message: { refusal: null, parsed } }],
+  });
+}
+
+const fields = {
+  name: z.string(),
+  email: z.string(),
+};
+const fallbackValue = { name: null, email: null };
+
+describe("GroundedExtractor - construction/config validation (US2)", () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env["OPENAI_API_KEY"] = "test-key";
+  });
+
+  it("throws immediately when fallbackValue is missing", () => {
+    expect(() => new GroundedExtractor({ fields } as any)).toThrow(/fallbackValue/i);
+  });
+
+  it("throws immediately when fields is missing", () => {
+    expect(() => new GroundedExtractor({ fallbackValue } as any)).toThrow(/fields/i);
+  });
+
+  it("defaults strict to false when omitted", async () => {
+    mockParsedResponse({ name: "Ada", email: null, reasoning: "partial" });
+    const extractor = new GroundedExtractor({ fields, fallbackValue });
+    const result = await extractor.extract({ message: "My name is Ada" });
+    // non-strict (default) accepts partial data instead of falling back
+    expect(result.usedFallback).toBe(false);
+  });
+});
+
+describe("GroundedExtractor - full extraction success (US2)", () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env["OPENAI_API_KEY"] = "test-key";
+  });
+
+  it("returns extracted data, reasoning, and temperature: 0 by default (FR-207, FR-208)", async () => {
+    mockParsedResponse({ name: "Ada Lovelace", email: "ada@example.com", reasoning: "both fields found" });
+
+    const extractor = new GroundedExtractor({ fields, fallbackValue });
+    const result = await extractor.extract({ message: "I'm Ada Lovelace, ada@example.com" });
+
+    expect(result.usedFallback).toBe(false);
+    expect(result.data).toEqual({ name: "Ada Lovelace", email: "ada@example.com" });
+    expect(result.reasoning).toBeTruthy();
+    expect(parseMock).toHaveBeenCalledWith(expect.objectContaining({ temperature: 0 }));
+  });
+});
+
+describe("GroundedExtractor - partial extraction, non-strict mode (default, US2)", () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env["OPENAI_API_KEY"] = "test-key";
+  });
+
+  it("returns partial data with nulls for missing fields, no fallback", async () => {
+    mockParsedResponse({ name: "Ada Lovelace", email: null, reasoning: "only name found" });
+
+    const extractor = new GroundedExtractor({ fields, fallbackValue });
+    const result = await extractor.extract({ message: "I'm Ada Lovelace" });
+
+    expect(result.usedFallback).toBe(false);
+    expect(result.data).toEqual({ name: "Ada Lovelace", email: null });
+  });
+});
+
+describe("GroundedExtractor - partial extraction, strict mode (US2)", () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env["OPENAI_API_KEY"] = "test-key";
+  });
+
+  it("triggers the whole-object fallback instead of returning partial data", async () => {
+    mockParsedResponse({ name: "Ada Lovelace", email: null, reasoning: "only name found" });
+
+    const extractor = new GroundedExtractor({ fields, fallbackValue, strict: true });
+    const result = await extractor.extract({ message: "I'm Ada Lovelace" });
+
+    expect(result.usedFallback).toBe(true);
+    expect(result.data).toEqual(fallbackValue);
+  });
+});
+
+describe("GroundedExtractor - no extractable information (US2, FR-206)", () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env["OPENAI_API_KEY"] = "test-key";
+  });
+
+  it("returns fallbackValue when every field is null", async () => {
+    mockParsedResponse({ name: null, email: null, reasoning: "nothing found" });
+
+    const extractor = new GroundedExtractor({ fields, fallbackValue });
+    const result = await extractor.extract({ message: "The weather is nice today." });
+
+    expect(result.usedFallback).toBe(true);
+    expect(result.data).toEqual(fallbackValue);
+  });
+
+  it("returns fallbackValue for an empty/blank message without calling the model", async () => {
+    const extractor = new GroundedExtractor({ fields, fallbackValue });
+    const result = await extractor.extract({ message: "   " });
+
+    expect(result.usedFallback).toBe(true);
+    expect(result.data).toEqual(fallbackValue);
+    expect(parseMock).not.toHaveBeenCalled();
+  });
+});

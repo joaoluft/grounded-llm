@@ -25,6 +25,22 @@ gerar a resposta final.
 > `openai` internamente (injetado por você ou criado a partir de uma `apiKey`); não há
 > suporte a outros provedores de modelo nesta release.
 
+### Generators
+
+A lib oferece três componentes, cada um para um cenário diferente de chamada LLM
+ancorada em contexto:
+
+| Componente | Uso | Método |
+|---|---|---|
+| [`GroundedGenerator`](#groundedgenerator) | Gerar a resposta final ao usuário a partir de contexto recuperado | `.generate({ context, question })` |
+| [`GroundedEnricher`](#groundedenricher) | Enriquecer um texto-base existente com contexto recuperado | `.generate({ baseContent, context })` |
+| [`GroundedExtractor`](#groundedextractor) | Extrair um objeto estruturado (campos definidos por você) da mensagem do usuário | `.extract({ message })` |
+
+Os três compartilham os mesmos princípios: fallback obrigatório na construção, saída
+estruturada via schema, `temperature` zero por padrão, e erros operacionais
+(`ModelUnavailableError`, `ContextTooLargeError`, `InvalidModelOutputError`) sempre
+distintos de um resultado com fallback.
+
 ### GroundedGenerator
 
 Gera uma resposta final estritamente ancorada no contexto recuperado, ou recorre a um
@@ -68,6 +84,70 @@ automaticamente — a política de retry é responsabilidade de quem consome a l
 Esses erros são distintos de um resultado normal com `usedFallback: true`, que é um
 desfecho válido (contexto insuficiente), não um erro.
 
+### GroundedEnricher
+
+Enriquece um texto-base existente com contexto recuperado (por exemplo, via RAG) — útil
+quando você já tem uma resposta-template e quer adicionar informação dinâmica a ela, em
+vez de gerar uma resposta do zero.
+
+```ts
+import { GroundedEnricher } from "grounded-llm";
+
+const enricher = new GroundedEnricher({
+  fallbackValue: "N/A", // exigido por consistência de API; nunca é retornado em uso normal (ver nota abaixo)
+});
+
+const result = await enricher.generate({
+  baseContent: "Obrigado pelo seu pedido!",
+  context: "Pedidos são entregues em até 3 dias úteis.",
+});
+
+console.log(result.usedFallback);   // false
+console.log(result.finalAnswer);    // "Obrigado pelo seu pedido! Pedidos são entregues em até 3 dias úteis."
+console.log(result.extractedFacts); // ["Pedidos são entregues em até 3 dias úteis."]
+```
+
+**Semântica de fallback diferente do `GroundedGenerator`**: quando o contexto é
+insuficiente para enriquecer com segurança, o `GroundedEnricher` retorna o
+`baseContent` **inalterado** (com `usedFallback: true`) — nunca o `fallbackValue`. O
+`fallbackValue` é exigido na construção apenas por consistência com os demais
+componentes da família; ele nunca é retornado em nenhum fluxo de sucesso. Um
+`baseContent` vazio/em branco é tratado como uso inválido e lança uma exceção
+imediatamente, sem chamar o modelo.
+
+### GroundedExtractor
+
+Extrai um objeto estruturado com campos definidos por você a partir de uma mensagem do
+usuário — útil para os cenários de "JSON mode" de chatbots (nome, e-mail, intenção,
+etc.), sem exigir um conjunto fechado de ações nem cálculo de confiança via logprob
+(isso é responsabilidade do futuro `GroundedDecider`).
+
+```ts
+import { GroundedExtractor } from "grounded-llm";
+import { z } from "zod";
+
+const extractor = new GroundedExtractor({
+  fields: { name: z.string(), email: z.string() },
+  fallbackValue: { name: null, email: null }, // objeto completo, mesmo formato de `fields`
+  // Opcional: strict (default false) — veja abaixo.
+});
+
+const result = await extractor.extract({
+  message: "Oi, sou a Ada Lovelace, ada@example.com",
+});
+
+console.log(result.usedFallback); // false
+console.log(result.data);         // { name: "Ada Lovelace", email: "ada@example.com" }
+console.log(result.reasoning);
+```
+
+**Extração parcial e modo `strict`**: se a mensagem preencher só parte dos campos, o
+comportamento padrão (`strict: false`) retorna os campos extraídos e `null` nos
+demais, sem acionar o `fallbackValue`. Com `strict: true`, qualquer campo ausente
+aciona o `fallbackValue` (objeto completo) em vez de um resultado parcial. Se
+nenhum campo puder ser extraído com segurança (ou a mensagem estiver vazia), o
+`fallbackValue` é retornado independentemente do modo `strict`.
+
 ### Releases
 
 O CI (`.github/workflows/ci.yml`) roda type-check, testes e build em todo push/PR para
@@ -94,6 +174,22 @@ answer.
 > **This version supports OpenAI exclusively.** The component uses the official
 > `openai` client internally (injected by you or created from an `apiKey`); no other
 > model provider is supported in this release.
+
+### Generators
+
+The library offers three components, each for a different context-grounded LLM call
+scenario:
+
+| Component | Use case | Method |
+|---|---|---|
+| [`GroundedGenerator`](#groundedgenerator-1) | Generate the final answer to the user from retrieved context | `.generate({ context, question })` |
+| [`GroundedEnricher`](#groundedenricher-1) | Enrich an existing base text with retrieved context | `.generate({ baseContent, context })` |
+| [`GroundedExtractor`](#groundedextractor-1) | Extract a structured object (fields you define) from the user message | `.extract({ message })` |
+
+All three share the same principles: mandatory fallback at construction, structured
+output via schema, `temperature` zero by default, and operational errors
+(`ModelUnavailableError`, `ContextTooLargeError`, `InvalidModelOutputError`) always
+distinct from a fallback result.
 
 ### GroundedGenerator
 
@@ -137,6 +233,69 @@ automatically — retry policy is the caller's responsibility):
 
 These are distinct from a normal result with `usedFallback: true`, which is a valid
 outcome (insufficient context), not an error.
+
+### GroundedEnricher
+
+Enriches an existing base text with retrieved context (e.g., via RAG) — useful when
+you already have a template/draft response and want to add dynamic information to it,
+instead of generating a response from scratch.
+
+```ts
+import { GroundedEnricher } from "grounded-llm";
+
+const enricher = new GroundedEnricher({
+  fallbackValue: "N/A", // required for API consistency; never actually returned in normal use (see note below)
+});
+
+const result = await enricher.generate({
+  baseContent: "Thanks for your order!",
+  context: "Orders ship within 3 business days.",
+});
+
+console.log(result.usedFallback);   // false
+console.log(result.finalAnswer);    // "Thanks for your order! Orders ship within 3 business days."
+console.log(result.extractedFacts); // ["Orders ship within 3 business days."]
+```
+
+**Fallback semantics differ from `GroundedGenerator`**: when the context is
+insufficient to enrich safely, `GroundedEnricher` returns `baseContent`
+**unchanged** (with `usedFallback: true`) — never `fallbackValue`. `fallbackValue` is
+required at construction only for consistency with the other components in the
+family; it's never returned by any success path. An empty/blank `baseContent` is
+treated as invalid usage and throws immediately, without calling the model.
+
+### GroundedExtractor
+
+Extracts a structured object with fields you define from a user message — useful for
+the "JSON mode" scenarios common in chatbots (name, email, intent, etc.), without
+requiring a closed set of actions or logprob-based confidence (that's the future
+`GroundedDecider`'s job).
+
+```ts
+import { GroundedExtractor } from "grounded-llm";
+import { z } from "zod";
+
+const extractor = new GroundedExtractor({
+  fields: { name: z.string(), email: z.string() },
+  fallbackValue: { name: null, email: null }, // whole object, same shape as `fields`
+  // Optional: strict (default false) — see below.
+});
+
+const result = await extractor.extract({
+  message: "Hi, I'm Ada Lovelace, ada@example.com",
+});
+
+console.log(result.usedFallback); // false
+console.log(result.data);         // { name: "Ada Lovelace", email: "ada@example.com" }
+console.log(result.reasoning);
+```
+
+**Partial extraction and `strict` mode**: if the message only supports part of the
+fields, the default behavior (`strict: false`) returns the extracted fields with
+`null` for the rest, without triggering `fallbackValue`. With `strict: true`, any
+missing field triggers `fallbackValue` (whole object) instead of a partial result. If
+no field can be safely extracted (or the message is empty), `fallbackValue` is
+returned regardless of `strict`.
 
 ### Releasing
 

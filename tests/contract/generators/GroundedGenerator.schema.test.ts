@@ -58,4 +58,18 @@ describe("GroundedGenerator structured output schema", () => {
     expect(format.json_schema.strict).toBe(true);
     expect(format.json_schema.name).toBe("grounded_generation");
   });
+
+  it("includes a non-empty description for each field in the generated JSON schema (FR-301)", async () => {
+    const { zodResponseFormat } = await import("openai/helpers/zod.mjs");
+    const format = zodResponseFormat(groundedGenerationSchema, "grounded_generation");
+    const properties = (format.json_schema.schema as { properties: Record<string, { description?: string }> })
+      .properties;
+
+    for (const field of ["extracted_facts", "sufficient_context", "reasoning", "final_answer"]) {
+      expect(properties[field]?.description).toBeTruthy();
+    }
+    expect(properties["sufficient_context"]?.description).toBe(
+      "Se o contexto fornecido é suficiente para responder com segurança, sem completar com conhecimento externo."
+    );
+  });
 });

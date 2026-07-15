@@ -11,16 +11,17 @@ import { estimateTokens, getMaxContextTokens } from "./contextWindow.js";
  * FR-010, FR-011, FR-012). Reusable by a future `GroundedDecider` — keep this file
  * free of `GroundedGenerator`-specific behavior.
  */
-export abstract class GroundedCall {
+export abstract class GroundedCall<TFallback = string> {
   protected readonly client: OpenAI;
   protected readonly model: string;
-  protected readonly fallbackValue: string;
+  protected readonly fallbackValue: TFallback;
   protected readonly temperature: number;
   protected readonly maxContextTokens: number;
 
-  constructor(config: GroundedCallConfig) {
-    if (!config.fallbackValue || config.fallbackValue.trim().length === 0) {
-      throw new Error("GroundedCall: `fallbackValue` is required and must be a non-empty string.");
+  constructor(config: GroundedCallConfig<TFallback>) {
+    const isEmptyString = typeof config.fallbackValue === "string" && config.fallbackValue.trim().length === 0;
+    if (config.fallbackValue === undefined || config.fallbackValue === null || isEmptyString) {
+      throw new Error("GroundedCall: `fallbackValue` is required and must not be empty.");
     }
     this.fallbackValue = config.fallbackValue;
 

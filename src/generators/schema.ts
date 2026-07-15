@@ -7,10 +7,20 @@ import { z } from "zod";
  * data-model.md for the mapping to the public `GroundedCallResult` fields.
  */
 export const groundedGenerationSchema = z.object({
-  extracted_facts: z.array(z.string()),
-  sufficient_context: z.boolean(),
-  reasoning: z.string(),
-  final_answer: z.string(),
+  extracted_facts: z
+    .array(z.string())
+    .describe("Trechos literais extraídos do contexto fornecido que sustentam a resposta."),
+  sufficient_context: z
+    .boolean()
+    .describe(
+      "Se o contexto fornecido é suficiente para responder com segurança, sem completar com conhecimento externo."
+    ),
+  reasoning: z
+    .string()
+    .describe("Raciocínio conectando os trechos extraídos à decisão de suficiência e à resposta final."),
+  final_answer: z
+    .string()
+    .describe("Resposta final ao usuário, derivada exclusivamente dos trechos extraídos."),
 });
 
 export type GroundedGenerationOutput = z.infer<typeof groundedGenerationSchema>;
