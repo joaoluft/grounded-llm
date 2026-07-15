@@ -105,6 +105,7 @@ const result = await enricher.generate({
 console.log(result.usedFallback);   // false
 console.log(result.finalAnswer);    // "Obrigado pelo seu pedido! Pedidos são entregues em até 3 dias úteis."
 console.log(result.extractedFacts); // ["Pedidos são entregues em até 3 dias úteis."]
+console.log(result.reasoning);      // explicação conectando os fatos ao enriquecimento
 ```
 
 **Semântica de fallback diferente do `GroundedGenerator`**: quando o contexto é
@@ -255,6 +256,7 @@ const result = await enricher.generate({
 console.log(result.usedFallback);   // false
 console.log(result.finalAnswer);    // "Thanks for your order! Orders ship within 3 business days."
 console.log(result.extractedFacts); // ["Orders ship within 3 business days."]
+console.log(result.reasoning);      // explanation connecting facts to the enrichment
 ```
 
 **Fallback semantics differ from `GroundedGenerator`**: when the context is
