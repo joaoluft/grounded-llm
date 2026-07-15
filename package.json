@@ -4,6 +4,14 @@
   "description": "TypeScript library to reduce hallucination in LLM-generated responses and decisions by grounding them in retrieved context.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/joaoluft/grounded-llm.git"
+  },
+  "bugs": {
+    "url": "https://github.com/joaoluft/grounded-llm/issues"
+  },
+  "homepage": "https://github.com/joaoluft/grounded-llm#readme",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -28,7 +36,8 @@
   "scripts": {
     "build": "tsup",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepublishOnly": "npm test && npm run build"
   },
   "dependencies": {
     "openai": "^4.68.0",

@@ -45,3 +45,18 @@ automatically — retry policy is the caller's responsibility):
 
 These are distinct from a normal result with `usedFallback: true`, which is a valid
 outcome (insufficient context), not an error.
+
+## Releasing
+
+CI (`.github/workflows/ci.yml`) runs type-check, tests, and build on every push/PR to
+`main`. Publishing to npm (`.github/workflows/release.yml`) is triggered by pushing a
+`v*.*.*` tag:
+
+```sh
+npm version patch   # or minor / major — bumps package.json and creates a git tag
+git push --follow-tags
+```
+
+The release workflow verifies the tag matches `package.json`'s version, then runs the
+same build/test steps before publishing with npm provenance. Requires an `NPM_TOKEN`
+secret (an npm Automation token) configured in the repository settings.
