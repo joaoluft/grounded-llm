@@ -9,7 +9,7 @@ Este projeto está configurado com **ESLint** para análise estática de código
 ### ESLint (`eslint.config.js`)
 
 - **Parser**: `@typescript-eslint/parser` para suporte a TypeScript
-- **Regras**: 
+- **Regras**:
   - Recomendações padrão do ESLint e @typescript-eslint
   - Proíbe `any` (com warnings)
   - Remove variáveis não utilizadas (exceto prefixadas com `_`)
@@ -20,7 +20,7 @@ Este projeto está configurado com **ESLint** para análise estática de código
 ```json
 {
   "printWidth": 100,
-  "tabWidth": 2,           // ← 2 SPACES (padrão JS/TS)
+  "tabWidth": 2, // ← 2 SPACES (padrão JS/TS)
   "useTabs": false,
   "semi": true,
   "singleQuote": true,
@@ -33,6 +33,7 @@ Este projeto está configurado com **ESLint** para análise estática de código
 ### VSCode Settings (`.vscode/settings.json`)
 
 Configuração automática do editor:
+
 - **Editor default formatter**: Prettier
 - **Format on save**: Ativado
 - **Format on paste**: Ativado
@@ -82,15 +83,16 @@ npm run lint:fix
 
 ## Regras ESLint
 
-| Regra | Nível | Descrição |
-|-------|-------|-----------|
-| `no-unused-vars` | error | Variáveis não utilizadas |
-| `no-explicit-any` | warn | Uso de `any` em TypeScript |
-| `no-console` | warn | Console (exceto warn/error) |
+| Regra             | Nível | Descrição                   |
+| ----------------- | ----- | --------------------------- |
+| `no-unused-vars`  | error | Variáveis não utilizadas    |
+| `no-explicit-any` | warn  | Uso de `any` em TypeScript  |
+| `no-console`      | warn  | Console (exceto warn/error) |
 
 ## Ignored Files
 
 Arquivos ignorados pelo ESLint e Prettier:
+
 - `node_modules/`
 - `dist/`
 - `coverage/`
@@ -103,14 +105,14 @@ Arquivos ignorados pelo ESLint e Prettier:
 ### Antes (sem Prettier)
 
 ```typescript
-const foo:string   =    "bar"
-const baz:number=    123
+const foo: string = 'bar';
+const baz: number = 123;
 ```
 
 ### Depois (com Prettier + 2 spaces)
 
 ```typescript
-const foo: string = "bar";
+const foo: string = 'bar';
 const baz: number = 123;
 ```
 
