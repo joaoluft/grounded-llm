@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
-import { buildExtractionSchema } from "../../../src/generators/GroundedExtractor.schema.js";
+import { buildExtractionSchema } from "../../../src/generators/grounded-extractor.schema.js";
 
 describe("GroundedExtractor dynamically-built structured output schema", () => {
   const fields = {

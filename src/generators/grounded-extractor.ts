@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type OpenAI from "openai";
-import { GroundedCall } from "../core/GroundedCall.js";
-import { buildExtractionSchema } from "./GroundedExtractor.schema.js";
+import { GroundedCall } from "../core/grounded-call.js";
+import { buildExtractionSchema } from "./grounded-extractor.schema.js";
 
 /** Maps a developer-provided fields shape to its extracted-value shape (each field nullable). */
 export type ExtractionData<Fields extends z.ZodRawShape> = {

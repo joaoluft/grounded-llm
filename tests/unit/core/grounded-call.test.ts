@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { LengthFinishReasonError, ContentFilterFinishReasonError, APIConnectionError } from "openai/error.mjs";
-import { GroundedCall } from "../../../src/core/GroundedCall.js";
+import { GroundedCall } from "../../../src/core/grounded-call.js";
 import { ContextTooLargeError, ModelUnavailableError, InvalidModelOutputError } from "../../../src/core/errors.js";
 import type { GroundedCallConfig } from "../../../src/core/types.js";
 

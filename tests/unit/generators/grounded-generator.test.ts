@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { GroundedGenerator } from "../../../src/generators/GroundedGenerator.js";
+import { GroundedGenerator } from "../../../src/generators/grounded-generator.js";
 
 const parseMock = vi.fn();
 

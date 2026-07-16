@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { groundedEnrichmentSchema } from "../../../src/generators/GroundedEnricher.schema.js";
+import { groundedEnrichmentSchema } from "../../../src/generators/grounded-enricher.schema.js";
 
 describe("GroundedEnricher structured output schema", () => {
   it("accepts a fully-formed sufficient-context payload", () => {

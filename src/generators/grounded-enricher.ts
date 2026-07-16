@@ -1,7 +1,7 @@
 import { zodResponseFormat } from "openai/helpers/zod.mjs";
-import { GroundedCall } from "../core/GroundedCall.js";
+import { GroundedCall } from "../core/grounded-call.js";
 import type { GroundedCallConfig, GroundedCallResult } from "../core/types.js";
-import { groundedEnrichmentSchema, type GroundedEnrichmentOutput } from "./GroundedEnricher.schema.js";
+import { groundedEnrichmentSchema, type GroundedEnrichmentOutput } from "./grounded-enricher.schema.js";
 
 export interface EnrichmentRequest {
   baseContent: string;

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { GroundedEnricher } from "../../../src/generators/GroundedEnricher.js";
+import { GroundedEnricher } from "../../../src/generators/grounded-enricher.js";
 
 const parseMock = vi.fn();
 

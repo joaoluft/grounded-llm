@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { z } from "zod";
-import { GroundedExtractor } from "../../../src/generators/GroundedExtractor.js";
+import { GroundedExtractor } from "../../../src/generators/grounded-extractor.js";
 
 const parseMock = vi.fn();
 

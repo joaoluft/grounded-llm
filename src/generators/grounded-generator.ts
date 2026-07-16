@@ -1,5 +1,5 @@
 import { zodResponseFormat } from "openai/helpers/zod.mjs";
-import { GroundedCall } from "../core/GroundedCall.js";
+import { GroundedCall } from "../core/grounded-call.js";
 import type { GroundedCallConfig, GroundedCallResult } from "../core/types.js";
 import { groundedGenerationSchema, type GroundedGenerationOutput } from "./schema.js";
 

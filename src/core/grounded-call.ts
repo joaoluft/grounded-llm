@@ -3,7 +3,7 @@ import { LengthFinishReasonError, ContentFilterFinishReasonError } from "openai/
 import type { ChatCompletionParseParams, ParsedChatCompletion } from "openai/resources/beta/chat/completions.mjs";
 import type { GroundedCallConfig } from "./types.js";
 import { ModelUnavailableError, ContextTooLargeError, InvalidModelOutputError } from "./errors.js";
-import { estimateTokens, getMaxContextTokens } from "./contextWindow.js";
+import { estimateTokens, getMaxContextTokens } from "./context-window.js";
 
 /**
  * Shared base for components that call an OpenAI chat model with structured output,
