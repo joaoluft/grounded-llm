@@ -30,8 +30,8 @@ describe("GroundedExtractor - construction/config validation (US2)", () => {
     process.env["OPENAI_API_KEY"] = "test-key";
   });
 
-  it("throws immediately when fallbackValue is missing", () => {
-    expect(() => new GroundedExtractor({ fields } as any)).toThrow(/fallbackValue/i);
+  it("throws immediately when fallbackValue is explicitly an empty object property set to an empty string", () => {
+    expect(() => new GroundedExtractor({ fields, fallbackValue: "" as any })).toThrow(/fallbackValue/i);
   });
 
   it("throws immediately when fields is missing", () => {
@@ -141,6 +141,46 @@ describe("GroundedExtractor - no extractable information (US2, FR-206)", () => {
 
     expect(result.usedFallback).toBe(true);
     expect(result.data).toEqual(fallbackValue);
+    expect(parseMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("GroundedExtractor - free-extraction mode when no fallbackValue is configured (003-optional-fallback US3)", () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env["OPENAI_API_KEY"] = "test-key";
+  });
+
+  it("constructs successfully without fallbackValue", () => {
+    expect(() => new GroundedExtractor({ fields })).not.toThrow();
+  });
+
+  it("returns nulled-out data instead of throwing when nothing is extracted (FR-009)", async () => {
+    mockParsedResponse({ name: null, email: null, reasoning: "nothing found" });
+
+    const extractor = new GroundedExtractor({ fields });
+    const result = await extractor.extract({ message: "The weather is nice today." });
+
+    expect(result.usedFallback).toBe(false);
+    expect(result.data).toEqual({ name: null, email: null });
+  });
+
+  it("ignores strict and returns partial data instead of falling back (FR-009)", async () => {
+    mockParsedResponse({ name: "Ada Lovelace", email: null, reasoning: "only name found" });
+
+    const extractor = new GroundedExtractor({ fields, strict: true });
+    const result = await extractor.extract({ message: "I'm Ada Lovelace" });
+
+    expect(result.usedFallback).toBe(false);
+    expect(result.data).toEqual({ name: "Ada Lovelace", email: null });
+  });
+
+  it("returns nulled-out data for an empty/blank message without calling the model (FR-011)", async () => {
+    const extractor = new GroundedExtractor({ fields });
+    const result = await extractor.extract({ message: "   " });
+
+    expect(result.usedFallback).toBe(false);
+    expect(result.data).toEqual({ name: null, email: null });
     expect(parseMock).not.toHaveBeenCalled();
   });
 });

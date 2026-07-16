@@ -61,10 +61,22 @@ scenario:
 | [`GroundedEnricher`](#groundedenricher) | Enrich an existing base text with retrieved context | `.generate({ baseContent, context })` |
 | [`GroundedExtractor`](#groundedextractor) | Extract a structured object (fields you define) from the user message | `.extract({ message })` |
 
-All three share the same principles: mandatory fallback at construction, structured
-output via schema, `temperature` zero by default, and operational errors
+All three share the same principles: optional fallback at construction (see below),
+structured output via schema, `temperature` zero by default, and operational errors
 (`ModelUnavailableError`, `ContextTooLargeError`, `InvalidModelOutputError`) always
 distinct from a fallback result.
+
+`fallbackValue` is optional. When configured, it's the canned value returned in place
+of the model's output whenever the component judges its own result unsafe to return
+(insufficient context, nothing extractable). When omitted:
+
+- `GroundedGenerator` and `GroundedEnricher` always let the model produce a real
+  answer — `GroundedGenerator` falls back to a best-effort answer (general knowledge,
+  or a clarifying question) instead of an empty result; `GroundedEnricher`'s behavior
+  is unchanged either way, since it already returns `baseContent` unchanged on
+  insufficient context rather than a configured fallback.
+- `GroundedExtractor` always returns the model's raw extraction (`null` for fields it
+  couldn't find), ignoring `strict`, instead of substituting a fallback object.
 
 All three also accept, at construction, two optional parameters to customize the
 model's behavior for that call:
@@ -88,9 +100,10 @@ import { GroundedGenerator } from "grounded-llm";
 
 const generator = new GroundedGenerator({
   fallbackValue: "Sorry, I don't have enough information to answer that.",
-  // Optional: model (default "gpt-4o-mini"), apiKey (default OPENAI_API_KEY),
+  // Optional: fallbackValue (see "Generators" above for what happens when it's
+  // omitted), model (default "gpt-4o-mini"), apiKey (default OPENAI_API_KEY),
   // temperature (default 0), maxContextTokens, or an already-configured `client`
-  // instance from the `openai` package. Also accepts identity/rules (see "Generators").
+  // instance from the `openai` package. Also accepts identity/rules.
 });
 
 const result = await generator.generate({
@@ -250,10 +263,23 @@ ancorada em contexto:
 | [`GroundedEnricher`](#groundedenricher-1) | Enriquecer um texto-base existente com contexto recuperado | `.generate({ baseContent, context })` |
 | [`GroundedExtractor`](#groundedextractor-1) | Extrair um objeto estruturado (campos definidos por você) da mensagem do usuário | `.extract({ message })` |
 
-Os três compartilham os mesmos princípios: fallback obrigatório na construção, saída
-estruturada via schema, `temperature` zero por padrão, e erros operacionais
-(`ModelUnavailableError`, `ContextTooLargeError`, `InvalidModelOutputError`) sempre
-distintos de um resultado com fallback.
+Os três compartilham os mesmos princípios: fallback opcional na construção (veja
+abaixo), saída estruturada via schema, `temperature` zero por padrão, e erros
+operacionais (`ModelUnavailableError`, `ContextTooLargeError`, `InvalidModelOutputError`)
+sempre distintos de um resultado com fallback.
+
+`fallbackValue` é opcional. Quando configurado, é o valor fixo retornado no lugar da
+saída do modelo sempre que o componente julga seu próprio resultado inseguro para
+retornar (contexto insuficiente, nada extraível). Quando omitido:
+
+- `GroundedGenerator` e `GroundedEnricher` sempre deixam o modelo produzir uma
+  resposta real — o `GroundedGenerator` recorre a uma resposta best-effort
+  (conhecimento geral, ou uma pergunta de esclarecimento) em vez de um resultado
+  vazio; o comportamento do `GroundedEnricher` não muda de qualquer forma, já que ele
+  já retorna o `baseContent` inalterado quando o contexto é insuficiente, em vez de um
+  fallback configurado.
+- `GroundedExtractor` sempre retorna a extração bruta do modelo (`null` nos campos não
+  encontrados), ignorando `strict`, em vez de substituir por um objeto de fallback.
 
 Os três também aceitam, na construção, dois parâmetros opcionais para customizar o
 comportamento do modelo naquela chamada:
@@ -277,9 +303,10 @@ import { GroundedGenerator } from "grounded-llm";
 
 const generator = new GroundedGenerator({
   fallbackValue: "Desculpe, não tenho informação suficiente para responder isso.",
-  // Opcional: model (default "gpt-4o-mini"), apiKey (default OPENAI_API_KEY),
+  // Opcional: fallbackValue (ver "Generators" acima para o que acontece quando
+  // omitido), model (default "gpt-4o-mini"), apiKey (default OPENAI_API_KEY),
   // temperature (default 0), maxContextTokens, ou uma instância `client` já
-  // configurada do pacote `openai`. Também aceita identity/rules (ver "Generators").
+  // configurada do pacote `openai`. Também aceita identity/rules.
 });
 
 const result = await generator.generate({

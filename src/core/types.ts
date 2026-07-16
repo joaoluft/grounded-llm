@@ -12,8 +12,8 @@ export interface GroundedCallConfig<TFallback = string> {
   apiKey?: string;
   /** Used only when `client` is not provided. Defaults to `"gpt-4o-mini"`. */
   model?: string;
-  /** Required. No implicit default (FR-005). */
-  fallbackValue: TFallback;
+  /** Optional. When omitted, the component must produce a real result instead of a canned fallback (003-optional-fallback FR-001). */
+  fallbackValue?: TFallback;
   /** Defaults to `0` (constitution principle 6). */
   temperature?: number;
   /** Default derived from the known limit of `model`, when available (FR-011). */

@@ -44,10 +44,15 @@ describe("GroundedCall construction", () => {
     delete process.env["OPENAI_API_KEY"];
   });
 
-  it("throws immediately when fallbackValue is missing", () => {
+  it("throws immediately when fallbackValue is explicitly an empty string", () => {
     expect(() => new TestableGroundedCall({ fallbackValue: "" } as GroundedCallConfig)).toThrow(
       /fallbackValue/i
     );
+  });
+
+  it("constructs successfully without fallbackValue", () => {
+    process.env["OPENAI_API_KEY"] = "test-key";
+    expect(() => new TestableGroundedCall({} as GroundedCallConfig)).not.toThrow();
   });
 
   it("throws immediately when model is an empty string and no client is provided", () => {

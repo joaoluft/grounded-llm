@@ -153,6 +153,84 @@ describe("GroundedGenerator - fallback when context is insufficient (US2)", () =
   });
 });
 
+describe("GroundedGenerator - free-answer mode when no fallbackValue is configured (003-optional-fallback US1)", () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env["OPENAI_API_KEY"] = "test-key";
+  });
+
+  it("returns the model's own answer when context is insufficient and no fallback is configured (FR-003, FR-005)", async () => {
+    mockParsedResponse({
+      extracted_facts: [],
+      sufficient_context: false,
+      reasoning: "No relevant information found in the context.",
+      final_answer: "I couldn't find that in the context, but generally speaking, Paris is the capital of France.",
+    });
+
+    const generator = new GroundedGenerator({});
+    const result = await generator.generate({
+      context: "Completely unrelated text.",
+      question: "What is the capital of France?",
+    });
+
+    expect(result.usedFallback).toBe(false);
+    expect(result.finalAnswer).toBe(
+      "I couldn't find that in the context, but generally speaking, Paris is the capital of France."
+    );
+    expect(result.extractedFacts).toEqual([]);
+    expect(result.reasoning).toBe("No relevant information found in the context.");
+  });
+
+  it("still calls the model when context is empty/blank and no fallback is configured (FR-004)", async () => {
+    mockParsedResponse({
+      extracted_facts: [],
+      sufficient_context: false,
+      reasoning: "No context was provided.",
+      final_answer: "I don't have any context, but Paris is the capital of France.",
+    });
+
+    const generator = new GroundedGenerator({});
+    const result = await generator.generate({ context: "   ", question: "What is the capital of France?" });
+
+    expect(parseMock).toHaveBeenCalledTimes(1);
+    expect(result.usedFallback).toBe(false);
+    expect(result.finalAnswer).toBe("I don't have any context, but Paris is the capital of France.");
+  });
+
+  it("sends the no-fallback prompt variant instructing the model to never leave final_answer empty", async () => {
+    mockParsedResponse({
+      extracted_facts: [],
+      sufficient_context: false,
+      reasoning: "r",
+      final_answer: "a",
+    });
+
+    const generator = new GroundedGenerator({});
+    await generator.generate({ context: "irrelevant", question: "q?" });
+
+    const sentSystemMessage = parseMock.mock.calls[0][0].messages[0].content as string;
+    expect(sentSystemMessage).toContain("Never leave final_answer empty");
+  });
+
+  it("still returns the model's answer when sufficient_context is true and no fallback is configured", async () => {
+    mockParsedResponse({
+      extracted_facts: ["Paris is the capital of France."],
+      sufficient_context: true,
+      reasoning: "Directly stated.",
+      final_answer: "Paris is the capital of France.",
+    });
+
+    const generator = new GroundedGenerator({});
+    const result = await generator.generate({
+      context: "Paris is the capital of France.",
+      question: "What is the capital of France?",
+    });
+
+    expect(result.usedFallback).toBe(false);
+    expect(result.finalAnswer).toBe("Paris is the capital of France.");
+  });
+});
+
 describe("GroundedGenerator - invalid question (US1 edge case)", () => {
   beforeEach(() => {
     parseMock.mockReset();

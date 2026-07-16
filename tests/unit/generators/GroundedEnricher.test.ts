@@ -145,3 +145,32 @@ describe("GroundedEnricher - empty/blank baseContent is invalid usage (US1, FR-1
     expect(parseMock).not.toHaveBeenCalled();
   });
 });
+
+describe("GroundedEnricher - no fallbackValue configured (003-optional-fallback US2, FR-008)", () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env["OPENAI_API_KEY"] = "test-key";
+  });
+
+  it("constructs successfully without fallbackValue", () => {
+    expect(() => new GroundedEnricher({})).not.toThrow();
+  });
+
+  it("still returns baseContent unchanged when context is insufficient, with no fallbackValue configured", async () => {
+    mockParsedResponse({
+      extracted_facts: [],
+      sufficient_context: false,
+      reasoning: "No relevant information found.",
+      enriched_text: "",
+    });
+
+    const enricher = new GroundedEnricher({});
+    const result = await enricher.generate({
+      baseContent: "Thanks for your order!",
+      context: "Completely unrelated text.",
+    });
+
+    expect(result.usedFallback).toBe(true);
+    expect(result.finalAnswer).toBe("Thanks for your order!");
+  });
+});

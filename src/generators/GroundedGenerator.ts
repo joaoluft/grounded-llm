@@ -8,7 +8,7 @@ export interface GenerationRequest {
   question: string;
 }
 
-const SYSTEM_PROMPT = `You answer questions using ONLY the provided context.
+const BASE_SYSTEM_PROMPT = `You answer questions using ONLY the provided context.
 
 Follow these steps:
 1. Extract the literal excerpts from the context that are relevant to the question, verbatim — never paraphrase.
@@ -18,11 +18,23 @@ Follow these steps:
      to answer safely; if not, treat it as insufficient.
 3. If sufficient, write a final answer using only information present in the extracted excerpts — never add
    outside knowledge.
-4. If not sufficient, or if no relevant excerpt exists, set sufficient_context to false and leave final_answer
-   empty — a fallback will be used instead of your answer.
+4. `;
+
+const WITH_FALLBACK_STEP_4 = `If not sufficient, or if no relevant excerpt exists, set sufficient_context to false and leave final_answer
+empty — a fallback will be used instead of your answer.`;
+
+const WITHOUT_FALLBACK_STEP_4 = `If not sufficient, or if no relevant excerpt exists, you must still answer as helpfully as possible —
+using general knowledge, or asking the user a clarifying question. Never leave final_answer empty.
+sufficient_context, extracted_facts, and reasoning must still truthfully reflect the grounding assessment.`;
+
+const CLOSING_INSTRUCTIONS = `
 
 Always explain your reasoning, connecting the extracted excerpts to your sufficiency decision and (when
 applicable) to the final answer.`;
+
+function buildSystemPromptBase(hasFallback: boolean): string {
+  return BASE_SYSTEM_PROMPT + (hasFallback ? WITH_FALLBACK_STEP_4 : WITHOUT_FALLBACK_STEP_4) + CLOSING_INSTRUCTIONS;
+}
 
 /**
  * Generates a final answer strictly grounded in retrieved context, or defers to a
@@ -38,12 +50,14 @@ export class GroundedGenerator extends GroundedCall {
       throw new Error("GroundedGenerator: `question` must be a non-empty string.");
     }
 
-    if (!request.context || request.context.trim().length === 0) {
+    const hasFallback = this.fallbackValue !== undefined;
+
+    if ((!request.context || request.context.trim().length === 0) && hasFallback) {
       return this.buildFallbackResult("Context was empty or blank.");
     }
 
     const userPrompt = this.buildUserPrompt(request);
-    const systemPrompt = this.buildSystemPrompt(SYSTEM_PROMPT);
+    const systemPrompt = this.buildSystemPrompt(buildSystemPromptBase(hasFallback));
     this.assertContextWithinLimit(systemPrompt + userPrompt);
 
     const output = (await this.callModel({
@@ -56,7 +70,7 @@ export class GroundedGenerator extends GroundedCall {
       ],
     })) as GroundedGenerationOutput;
 
-    if (!output.sufficient_context || output.extracted_facts.length === 0) {
+    if ((!output.sufficient_context || output.extracted_facts.length === 0) && hasFallback) {
       return this.buildFallbackResult(output.reasoning, output.extracted_facts);
     }
 
@@ -70,7 +84,7 @@ export class GroundedGenerator extends GroundedCall {
 
   private buildFallbackResult(reasoning: string, extractedFacts: string[] = []): GroundedCallResult {
     return {
-      finalAnswer: this.fallbackValue,
+      finalAnswer: this.fallbackValue as string,
       usedFallback: true,
       extractedFacts,
       reasoning,

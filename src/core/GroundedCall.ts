@@ -14,7 +14,7 @@ import { estimateTokens, getMaxContextTokens } from "./contextWindow.js";
 export abstract class GroundedCall<TFallback = string> {
   protected readonly client: OpenAI;
   protected readonly model: string;
-  protected readonly fallbackValue: TFallback;
+  protected readonly fallbackValue?: TFallback;
   protected readonly temperature: number;
   protected readonly maxContextTokens: number;
   protected readonly identity?: string;
@@ -22,8 +22,8 @@ export abstract class GroundedCall<TFallback = string> {
 
   constructor(config: GroundedCallConfig<TFallback>) {
     const isEmptyString = typeof config.fallbackValue === "string" && config.fallbackValue.trim().length === 0;
-    if (config.fallbackValue === undefined || config.fallbackValue === null || isEmptyString) {
-      throw new Error("GroundedCall: `fallbackValue` is required and must not be empty.");
+    if (config.fallbackValue === null || isEmptyString) {
+      throw new Error("GroundedCall: `fallbackValue`, when provided, must not be empty.");
     }
     this.fallbackValue = config.fallbackValue;
 

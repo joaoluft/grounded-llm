@@ -11,8 +11,8 @@ export type ExtractionData<Fields extends z.ZodRawShape> = {
 export interface GroundedExtractionConfig<Fields extends z.ZodRawShape> {
   /** Developer-defined fields to extract from the user message (FR-201). */
   fields: Fields;
-  /** Required whole-object fallback, same shape as `fields` (FR-205). */
-  fallbackValue: ExtractionData<Fields>;
+  /** Optional whole-object fallback, same shape as `fields` (FR-205). When omitted, `extract()` always returns the model's raw (nullable) extraction instead (003-optional-fallback FR-009). */
+  fallbackValue?: ExtractionData<Fields>;
   /** Default `false`. Whether partial extraction is accepted (FR-211). */
   strict?: boolean;
   client?: OpenAI;
@@ -92,19 +92,25 @@ export class GroundedExtractor<Fields extends z.ZodRawShape> extends GroundedCal
     const values = fieldKeys.map((key) => data[key]);
     const allNull = values.every((value) => value === null);
     const someNull = values.some((value) => value === null);
+    const hasFallback = this.fallbackValue !== undefined;
 
-    if (allNull) {
-      return this.buildFallbackResult(reasoning);
-    }
-
-    if (someNull && this.strict) {
+    const shouldFallback = hasFallback && (allNull || (someNull && this.strict));
+    if (shouldFallback) {
       return this.buildFallbackResult(reasoning);
     }
 
     return { data, usedFallback: false, reasoning };
   }
 
+  private buildEmptyData(): ExtractionData<Fields> {
+    const fieldKeys = Object.keys(this.fields) as (keyof Fields)[];
+    return Object.fromEntries(fieldKeys.map((key) => [key, null])) as ExtractionData<Fields>;
+  }
+
   private buildFallbackResult(reasoning: string): GroundedExtractionResult<Fields> {
-    return { data: this.fallbackValue, usedFallback: true, reasoning };
+    if (this.fallbackValue !== undefined) {
+      return { data: this.fallbackValue, usedFallback: true, reasoning };
+    }
+    return { data: this.buildEmptyData(), usedFallback: false, reasoning };
   }
 }
