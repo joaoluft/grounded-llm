@@ -22,10 +22,12 @@ Successfully refactored entire grounded-llm codebase from PascalCase to kebab-ca
 ### Files Renamed (7 total)
 
 #### Core Module
+
 - `src/core/contextWindow.ts` → `src/core/context-window.ts`
 - `src/core/GroundedCall.ts` → `src/core/grounded-call.ts`
 
 #### Generators
+
 - `src/generators/GroundedGenerator.ts` → `src/generators/grounded-generator.ts`
 - `src/generators/GroundedEnricher.ts` → `src/generators/grounded-enricher.ts`
 - `src/generators/GroundedExtractor.ts` → `src/generators/grounded-extractor.ts`
@@ -35,6 +37,7 @@ Successfully refactored entire grounded-llm codebase from PascalCase to kebab-ca
 ### Unchanged Files (3 total)
 
 These were already lowercase and didn't require renaming:
+
 - `src/core/types.ts` (unchanged)
 - `src/core/errors.ts` (unchanged)
 - `src/generators/schema.ts` (unchanged)
@@ -46,6 +49,7 @@ These were already lowercase and didn't require renaming:
 ### Updated Files (All src/ and tests/)
 
 **Source imports updated**:
+
 - `src/index.ts`: All 7 generator imports updated to kebab-case paths
 - `src/core/grounded-call.ts`: contextWindow → context-window import updated
 - `src/generators/grounded-enricher.ts`: Schema import path updated
@@ -53,12 +57,14 @@ These were already lowercase and didn't require renaming:
 - `src/generators/grounded-generator.ts`: Schema import path updated
 
 **Test imports updated**:
+
 - All test files updated via batch sed operations
 - Pattern: `from "../../../core/GroundedCall"` → `from "../../../core/grounded-call"`
 
 ### Import Resolution Strategy
 
 Used three complementary approaches:
+
 1. **Manual updates**: Critical files (index.ts, core modules) manually verified
 2. **Batch updates**: Test directory processed with find + sed using regex patterns
 3. **Verification**: npm run build executed after each import phase
@@ -70,14 +76,17 @@ Used three complementary approaches:
 ### Files Renamed (15 total)
 
 #### Contract Tests (3 files)
+
 - `tests/contract/generators/GroundedEnricher.schema.test.ts` → `grounded-enricher.schema.test.ts`
 - `tests/contract/generators/GroundedExtractor.schema.test.ts` → `grounded-extractor.schema.test.ts`
 - `tests/contract/generators/GroundedGenerator.schema.test.ts` → `grounded-generator.schema.test.ts`
 
 #### Unit Tests - Core (1 file)
+
 - `tests/unit/core/GroundedCall.test.ts` → `grounded-call.test.ts`
 
 #### Unit Tests - Generators (11 files)
+
 - `tests/unit/generators/GroundedEnricher.test.ts` → `grounded-enricher.test.ts`
 - `tests/unit/generators/GroundedEnricher.fallbackRate.evaluation.test.ts` → `grounded-enricher.fallback-rate.evaluation.test.ts`
 - `tests/unit/generators/GroundedEnricher.traceability.evaluation.test.ts` → `grounded-enricher.traceability.evaluation.test.ts`
@@ -113,6 +122,7 @@ Duration  1.71s
 ### Public API Verification
 
 **Exports maintained (unchanged)**:
+
 - GroundedCall
 - GroundedGenerator
 - GroundedEnricher
@@ -145,6 +155,7 @@ Duration  1.71s
 **Files staged for commit**: 22 (7 source renames + 15 test renames)
 
 **Recommended commit message**:
+
 ```
 refactor: rename all files from PascalCase to kebab-case
 
@@ -159,13 +170,13 @@ refactor: rename all files from PascalCase to kebab-case
 
 ## Quality Metrics
 
-| Metric | Before | After | Status |
-|--------|--------|-------|--------|
-| Files in kebab-case | 3 | 22 | ✅ 100% |
-| Test pass rate | 85/85 | 85/85 | ✅ Maintained |
-| Build success | 3/3 formats | 3/3 formats | ✅ Maintained |
-| Public API exports | 7 | 7 | ✅ Unchanged |
-| Type definitions | Valid | Valid | ✅ Maintained |
+| Metric              | Before      | After       | Status        |
+| ------------------- | ----------- | ----------- | ------------- |
+| Files in kebab-case | 3           | 22          | ✅ 100%       |
+| Test pass rate      | 85/85       | 85/85       | ✅ Maintained |
+| Build success       | 3/3 formats | 3/3 formats | ✅ Maintained |
+| Public API exports  | 7           | 7           | ✅ Unchanged  |
+| Type definitions    | Valid       | Valid       | ✅ Maintained |
 
 ---
 

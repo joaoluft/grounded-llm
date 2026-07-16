@@ -9,10 +9,12 @@
 ### Source Files to Rename (7 files)
 
 #### src/core/
+
 - [ ] contextWindow.ts → context-window.ts
 - [ ] GroundedCall.ts → grounded-call.ts
 
 #### src/generators/
+
 - [ ] GroundedGenerator.ts → grounded-generator.ts
 - [ ] GroundedEnricher.ts → grounded-enricher.ts
 - [ ] GroundedExtractor.ts → grounded-extractor.ts
@@ -24,14 +26,17 @@
 ### Test Files to Rename (15 files)
 
 #### tests/contract/generators/
+
 - [ ] GroundedEnricher.schema.test.ts → grounded-enricher.schema.test.ts
 - [ ] GroundedExtractor.schema.test.ts → grounded-extractor.schema.test.ts
 - [ ] GroundedGenerator.schema.test.ts → grounded-generator.schema.test.ts
 
 #### tests/unit/core/
+
 - [ ] GroundedCall.test.ts → grounded-call.test.ts
 
 #### tests/unit/generators/
+
 - [ ] GroundedEnricher.test.ts → grounded-enricher.test.ts
 - [ ] GroundedEnricher.fallbackRate.evaluation.test.ts → grounded-enricher.fallback-rate.evaluation.test.ts
 - [ ] GroundedEnricher.traceability.evaluation.test.ts → grounded-enricher.traceability.evaluation.test.ts
@@ -58,11 +63,13 @@
 ## Import Update Locations
 
 ### Source Files That Import Other Source Files
+
 - [ ] src/index.ts (imports from generators and core)
 - [ ] src/core/ files (internal core imports)
 - [ ] src/generators/ files (internal generator imports)
 
 ### Test Files That Import Source Files
+
 - [ ] tests/contract/generators/ (all contract tests)
 - [ ] tests/unit/core/ (all core unit tests)
 - [ ] tests/unit/generators/ (all generator unit tests)

@@ -48,18 +48,18 @@ output (schema-validated, not just a prompting convention), is what makes halluc
 structurally harder: the model cannot skip straight to a confident-sounding answer
 without first grounding it in literal text it can point to. Every result exposes this
 reasoning chain via `result.extractedFacts` and `result.reasoning`, so you can inspect
-*why* the model answered — or refused to — instead of trusting a black-box output.
+_why_ the model answered — or refused to — instead of trusting a black-box output.
 
 ### Generators
 
 The library offers three components, each for a different context-grounded LLM call
 scenario:
 
-| Component | Use case | Method |
-|---|---|---|
-| [`GroundedGenerator`](#groundedgenerator) | Generate the final answer to the user from retrieved context | `.generate({ context, question })` |
-| [`GroundedEnricher`](#groundedenricher) | Enrich an existing base text with retrieved context | `.generate({ baseContent, context })` |
-| [`GroundedExtractor`](#groundedextractor) | Extract a structured object (fields you define) from the user message | `.extract({ message })` |
+| Component                                 | Use case                                                              | Method                                |
+| ----------------------------------------- | --------------------------------------------------------------------- | ------------------------------------- |
+| [`GroundedGenerator`](#groundedgenerator) | Generate the final answer to the user from retrieved context          | `.generate({ context, question })`    |
+| [`GroundedEnricher`](#groundedenricher)   | Enrich an existing base text with retrieved context                   | `.generate({ baseContent, context })` |
+| [`GroundedExtractor`](#groundedextractor) | Extract a structured object (fields you define) from the user message | `.extract({ message })`               |
 
 All three share the same principles: optional fallback at construction (see below),
 structured output via schema, `temperature` zero by default, and operational errors
@@ -100,7 +100,7 @@ developer-configured value when the context is insufficient — instead of inven
 answer.
 
 ```ts
-import { GroundedGenerator } from "grounded-llm";
+import { GroundedGenerator } from 'grounded-llm';
 
 const generator = new GroundedGenerator({
   fallbackValue: "Sorry, I don't have enough information to answer that.",
@@ -111,14 +111,14 @@ const generator = new GroundedGenerator({
 });
 
 const result = await generator.generate({
-  context: "Paris is the capital of France.",
-  question: "What is the capital of France?",
+  context: 'Paris is the capital of France.',
+  question: 'What is the capital of France?',
 });
 
-console.log(result.usedFallback);   // false
-console.log(result.finalAnswer);    // "Paris is the capital of France."
+console.log(result.usedFallback); // false
+console.log(result.finalAnswer); // "Paris is the capital of France."
 console.log(result.extractedFacts); // ["Paris is the capital of France."]
-console.log(result.reasoning);      // explanation connecting facts to the answer
+console.log(result.reasoning); // explanation connecting facts to the answer
 ```
 
 `GroundedGenerator` is standalone — it depends only on the official `openai` client, so
@@ -144,22 +144,22 @@ you already have a template/draft response and want to add dynamic information t
 instead of generating a response from scratch.
 
 ```ts
-import { GroundedEnricher } from "grounded-llm";
+import { GroundedEnricher } from 'grounded-llm';
 
 const enricher = new GroundedEnricher({
-  fallbackValue: "N/A", // required for API consistency; never actually returned in normal use (see note below)
+  fallbackValue: 'N/A', // required for API consistency; never actually returned in normal use (see note below)
   // Also accepts identity/rules/tone, plus the same config options as GroundedGenerator.
 });
 
 const result = await enricher.generate({
-  baseContent: "Thanks for your order!",
-  context: "Orders ship within 3 business days.",
+  baseContent: 'Thanks for your order!',
+  context: 'Orders ship within 3 business days.',
 });
 
-console.log(result.usedFallback);   // false
-console.log(result.finalAnswer);    // "Thanks for your order! Orders ship within 3 business days."
+console.log(result.usedFallback); // false
+console.log(result.finalAnswer); // "Thanks for your order! Orders ship within 3 business days."
 console.log(result.extractedFacts); // ["Orders ship within 3 business days."]
-console.log(result.reasoning);      // explanation connecting facts to the enrichment
+console.log(result.reasoning); // explanation connecting facts to the enrichment
 ```
 
 **Fallback semantics differ from `GroundedGenerator`**: when the context is
@@ -177,8 +177,8 @@ requiring a closed set of actions or logprob-based confidence (that's the future
 `GroundedDecider`'s job).
 
 ```ts
-import { GroundedExtractor } from "grounded-llm";
-import { z } from "zod";
+import { GroundedExtractor } from 'grounded-llm';
+import { z } from 'zod';
 
 const extractor = new GroundedExtractor({
   fields: { name: z.string(), email: z.string() },
@@ -191,7 +191,7 @@ const result = await extractor.extract({
 });
 
 console.log(result.usedFallback); // false
-console.log(result.data);         // { name: "Ada Lovelace", email: "ada@example.com" }
+console.log(result.data); // { name: "Ada Lovelace", email: "ada@example.com" }
 console.log(result.reasoning);
 ```
 
@@ -253,7 +253,7 @@ estruturada (validada por schema, não apenas uma convenção de prompt), é o q
 alucinação estruturalmente mais difícil: o modelo não consegue pular direto para uma
 resposta com aparência confiante sem antes ancorá-la em texto literal que ele pode
 apontar. Todo resultado expõe essa cadeia de raciocínio via `result.extractedFacts` e
-`result.reasoning`, permitindo inspecionar *por que* o modelo respondeu — ou se recusou
+`result.reasoning`, permitindo inspecionar _por que_ o modelo respondeu — ou se recusou
 a responder — em vez de confiar em uma saída caixa-preta.
 
 ### Generators
@@ -261,11 +261,11 @@ a responder — em vez de confiar em uma saída caixa-preta.
 A lib oferece três componentes, cada um para um cenário diferente de chamada LLM
 ancorada em contexto:
 
-| Componente | Uso | Método |
-|---|---|---|
-| [`GroundedGenerator`](#groundedgenerator-1) | Gerar a resposta final ao usuário a partir de contexto recuperado | `.generate({ context, question })` |
-| [`GroundedEnricher`](#groundedenricher-1) | Enriquecer um texto-base existente com contexto recuperado | `.generate({ baseContent, context })` |
-| [`GroundedExtractor`](#groundedextractor-1) | Extrair um objeto estruturado (campos definidos por você) da mensagem do usuário | `.extract({ message })` |
+| Componente                                  | Uso                                                                              | Método                                |
+| ------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------- |
+| [`GroundedGenerator`](#groundedgenerator-1) | Gerar a resposta final ao usuário a partir de contexto recuperado                | `.generate({ context, question })`    |
+| [`GroundedEnricher`](#groundedenricher-1)   | Enriquecer um texto-base existente com contexto recuperado                       | `.generate({ baseContent, context })` |
+| [`GroundedExtractor`](#groundedextractor-1) | Extrair um objeto estruturado (campos definidos por você) da mensagem do usuário | `.extract({ message })`               |
 
 Os três compartilham os mesmos princípios: fallback opcional na construção (veja
 abaixo), saída estruturada via schema, `temperature` zero por padrão, e erros
@@ -306,10 +306,10 @@ valor de fallback configurado pelo desenvolvedor quando o contexto é insuficien
 vez de inventar uma resposta.
 
 ```ts
-import { GroundedGenerator } from "grounded-llm";
+import { GroundedGenerator } from 'grounded-llm';
 
 const generator = new GroundedGenerator({
-  fallbackValue: "Desculpe, não tenho informação suficiente para responder isso.",
+  fallbackValue: 'Desculpe, não tenho informação suficiente para responder isso.',
   // Opcional: fallbackValue (ver "Generators" acima para o que acontece quando
   // omitido), model (default "gpt-4o-mini"), apiKey (default OPENAI_API_KEY),
   // temperature (default 0), maxContextTokens, ou uma instância `client` já
@@ -317,14 +317,14 @@ const generator = new GroundedGenerator({
 });
 
 const result = await generator.generate({
-  context: "Paris é a capital da França.",
-  question: "Qual é a capital da França?",
+  context: 'Paris é a capital da França.',
+  question: 'Qual é a capital da França?',
 });
 
-console.log(result.usedFallback);   // false
-console.log(result.finalAnswer);    // "Paris é a capital da França."
+console.log(result.usedFallback); // false
+console.log(result.finalAnswer); // "Paris é a capital da França."
 console.log(result.extractedFacts); // ["Paris é a capital da França."]
-console.log(result.reasoning);      // explicação conectando os fatos à resposta
+console.log(result.reasoning); // explicação conectando os fatos à resposta
 ```
 
 O `GroundedGenerator` é standalone — depende apenas do client oficial `openai`, então
@@ -350,22 +350,22 @@ quando você já tem uma resposta-template e quer adicionar informação dinâmi
 vez de gerar uma resposta do zero.
 
 ```ts
-import { GroundedEnricher } from "grounded-llm";
+import { GroundedEnricher } from 'grounded-llm';
 
 const enricher = new GroundedEnricher({
-  fallbackValue: "N/A", // exigido por consistência de API; nunca é retornado em uso normal (ver nota abaixo)
+  fallbackValue: 'N/A', // exigido por consistência de API; nunca é retornado em uso normal (ver nota abaixo)
   // Também aceita identity/rules/tone, além das mesmas opções de configuração do GroundedGenerator.
 });
 
 const result = await enricher.generate({
-  baseContent: "Obrigado pelo seu pedido!",
-  context: "Pedidos são entregues em até 3 dias úteis.",
+  baseContent: 'Obrigado pelo seu pedido!',
+  context: 'Pedidos são entregues em até 3 dias úteis.',
 });
 
-console.log(result.usedFallback);   // false
-console.log(result.finalAnswer);    // "Obrigado pelo seu pedido! Pedidos são entregues em até 3 dias úteis."
+console.log(result.usedFallback); // false
+console.log(result.finalAnswer); // "Obrigado pelo seu pedido! Pedidos são entregues em até 3 dias úteis."
 console.log(result.extractedFacts); // ["Pedidos são entregues em até 3 dias úteis."]
-console.log(result.reasoning);      // explicação conectando os fatos ao enriquecimento
+console.log(result.reasoning); // explicação conectando os fatos ao enriquecimento
 ```
 
 **Semântica de fallback diferente do `GroundedGenerator`**: quando o contexto é
@@ -384,8 +384,8 @@ etc.), sem exigir um conjunto fechado de ações nem cálculo de confiança via 
 (isso é responsabilidade do futuro `GroundedDecider`).
 
 ```ts
-import { GroundedExtractor } from "grounded-llm";
-import { z } from "zod";
+import { GroundedExtractor } from 'grounded-llm';
+import { z } from 'zod';
 
 const extractor = new GroundedExtractor({
   fields: { name: z.string(), email: z.string() },
@@ -394,11 +394,11 @@ const extractor = new GroundedExtractor({
 });
 
 const result = await extractor.extract({
-  message: "Oi, sou a Ada Lovelace, ada@example.com",
+  message: 'Oi, sou a Ada Lovelace, ada@example.com',
 });
 
 console.log(result.usedFallback); // false
-console.log(result.data);         // { name: "Ada Lovelace", email: "ada@example.com" }
+console.log(result.data); // { name: "Ada Lovelace", email: "ada@example.com" }
 console.log(result.reasoning);
 ```
 

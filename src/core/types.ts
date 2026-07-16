@@ -1,4 +1,4 @@
-import type OpenAI from "openai";
+import type OpenAI from 'openai';
 
 /**
  * Generic over the fallback shape so components with a non-string fallback (e.g.

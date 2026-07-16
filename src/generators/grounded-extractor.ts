@@ -1,7 +1,7 @@
-import { z } from "zod";
-import type OpenAI from "openai";
-import { GroundedCall } from "../core/grounded-call.js";
-import { buildExtractionSchema } from "./grounded-extractor.schema.js";
+import { z } from 'zod';
+import type OpenAI from 'openai';
+import { GroundedCall } from '../core/grounded-call.js';
+import { buildExtractionSchema } from './grounded-extractor.schema.js';
 
 /** Maps a developer-provided fields shape to its extracted-value shape (each field nullable). */
 export type ExtractionData<Fields extends z.ZodRawShape> = {
@@ -50,15 +50,19 @@ field was left null).`;
  * mandatory whole-object fallback and a `strict` mode controlling whether partial
  * extraction is accepted (spec.md US2).
  */
-export class GroundedExtractor<Fields extends z.ZodRawShape> extends GroundedCall<ExtractionData<Fields>> {
+export class GroundedExtractor<Fields extends z.ZodRawShape> extends GroundedCall<
+  ExtractionData<Fields>
+> {
   private readonly fields: Fields;
   private readonly strict: boolean;
-  private readonly schema: ReturnType<typeof buildExtractionSchema<Fields>>["schema"];
-  private readonly responseFormat: ReturnType<typeof buildExtractionSchema<Fields>>["responseFormat"];
+  private readonly schema: ReturnType<typeof buildExtractionSchema<Fields>>['schema'];
+  private readonly responseFormat: ReturnType<
+    typeof buildExtractionSchema<Fields>
+  >['responseFormat'];
 
   constructor(config: GroundedExtractionConfig<Fields>) {
     if (!config.fields) {
-      throw new Error("GroundedExtractor: `fields` is required.");
+      throw new Error('GroundedExtractor: `fields` is required.');
     }
     super(config);
     this.fields = config.fields;
@@ -70,7 +74,7 @@ export class GroundedExtractor<Fields extends z.ZodRawShape> extends GroundedCal
 
   async extract(request: ExtractionRequest): Promise<GroundedExtractionResult<Fields>> {
     if (!request.message || request.message.trim().length === 0) {
-      return this.buildFallbackResult("Message was empty or blank.");
+      return this.buildFallbackResult('Message was empty or blank.');
     }
 
     const userPrompt = `Message:\n${request.message}`;
@@ -82,12 +86,14 @@ export class GroundedExtractor<Fields extends z.ZodRawShape> extends GroundedCal
       temperature: this.temperature,
       response_format: this.responseFormat,
       messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
       ],
     })) as z.infer<typeof this.schema>;
 
-    const { reasoning, ...extracted } = output as { reasoning: string } & Record<string, unknown>;
+    const { reasoning, ...extracted } = output as {
+      reasoning: string;
+    } & Record<string, unknown>;
     const data = extracted as ExtractionData<Fields>;
 
     const fieldKeys = Object.keys(this.fields) as (keyof Fields)[];

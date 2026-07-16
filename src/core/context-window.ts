@@ -8,9 +8,9 @@ export function estimateTokens(text: string): number {
 }
 
 const KNOWN_MODEL_LIMITS: Record<string, number> = {
-  "gpt-4o-mini": 128_000,
-  "gpt-4o": 128_000,
-  "gpt-4-turbo": 128_000,
+  'gpt-4o-mini': 128_000,
+  'gpt-4o': 128_000,
+  'gpt-4-turbo': 128_000,
 };
 
 const DEFAULT_MODEL_LIMIT = 128_000;

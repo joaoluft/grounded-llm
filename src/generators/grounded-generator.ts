@@ -1,7 +1,7 @@
-import { zodResponseFormat } from "openai/helpers/zod.mjs";
-import { GroundedCall } from "../core/grounded-call.js";
-import type { GroundedCallConfig, GroundedCallResult } from "../core/types.js";
-import { groundedGenerationSchema, type GroundedGenerationOutput } from "./schema.js";
+import { zodResponseFormat } from 'openai/helpers/zod.mjs';
+import { GroundedCall } from '../core/grounded-call.js';
+import type { GroundedCallConfig, GroundedCallResult } from '../core/types.js';
+import { groundedGenerationSchema, type GroundedGenerationOutput } from './schema.js';
 
 export interface GenerationRequest {
   context: string;
@@ -33,7 +33,11 @@ Always explain your reasoning, connecting the extracted excerpts to your suffici
 applicable) to the final answer.`;
 
 function buildSystemPromptBase(hasFallback: boolean): string {
-  return BASE_SYSTEM_PROMPT + (hasFallback ? WITH_FALLBACK_STEP_4 : WITHOUT_FALLBACK_STEP_4) + CLOSING_INSTRUCTIONS;
+  return (
+    BASE_SYSTEM_PROMPT +
+    (hasFallback ? WITH_FALLBACK_STEP_4 : WITHOUT_FALLBACK_STEP_4) +
+    CLOSING_INSTRUCTIONS
+  );
 }
 
 /**
@@ -47,13 +51,13 @@ export class GroundedGenerator extends GroundedCall {
 
   async generate(request: GenerationRequest): Promise<GroundedCallResult> {
     if (!request.question || request.question.trim().length === 0) {
-      throw new Error("GroundedGenerator: `question` must be a non-empty string.");
+      throw new Error('GroundedGenerator: `question` must be a non-empty string.');
     }
 
     const hasFallback = this.fallbackValue !== undefined;
 
     if ((!request.context || request.context.trim().length === 0) && hasFallback) {
-      return this.buildFallbackResult("Context was empty or blank.");
+      return this.buildFallbackResult('Context was empty or blank.');
     }
 
     const userPrompt = this.buildUserPrompt(request);
@@ -63,10 +67,10 @@ export class GroundedGenerator extends GroundedCall {
     const output = (await this.callModel({
       model: this.model,
       temperature: this.temperature,
-      response_format: zodResponseFormat(groundedGenerationSchema, "grounded_generation"),
+      response_format: zodResponseFormat(groundedGenerationSchema, 'grounded_generation'),
       messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
       ],
     })) as GroundedGenerationOutput;
 
@@ -82,7 +86,10 @@ export class GroundedGenerator extends GroundedCall {
     };
   }
 
-  private buildFallbackResult(reasoning: string, extractedFacts: string[] = []): GroundedCallResult {
+  private buildFallbackResult(
+    reasoning: string,
+    extractedFacts: string[] = []
+  ): GroundedCallResult {
     return {
       finalAnswer: this.fallbackValue as string,
       usedFallback: true,

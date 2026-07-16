@@ -162,17 +162,17 @@ Phase 7 (Polish) ← DEPENDS ON Phase 6
 ### User Story Execution Constraints
 
 - **US1 (Rename Source Files)**: No dependencies - can start immediately
-  - MUST complete before US2
-  - Can run parallel with US3 (different files)
+    - MUST complete before US2
+    - Can run parallel with US3 (different files)
 
 - **US2 (Update Imports)**: DEPENDS ON US1 - can start after US1 completes
-  - MUST complete before US4
+    - MUST complete before US4
 
 - **US3 (Rename Test Files)**: No dependencies - can run parallel with US1/US2
-  - MUST complete before US4
+    - MUST complete before US4
 
 - **US4 (Verify API)**: DEPENDS ON US2 AND US3 - can only start after both complete
-  - This is the final validation phase
+    - This is the final validation phase
 
 ### Critical Path
 
@@ -186,16 +186,19 @@ Phase 7 (Polish) ← DEPENDS ON Phase 6
 ### Parallel Opportunities
 
 **Parallel Group 1** (Phase 3 - US1):
+
 - All 7 file renames can execute in parallel on different machines/terminals
 - No dependencies between renames
 - Example: `(T003 + T004 + T005 + T006 + T007 + T008 + T009) in parallel`
 
 **Parallel Group 2** (Phase 5 - US3):
+
 - All 15 test file renames can execute in parallel
 - No dependencies between renames
 - Example: `(T018 + T019 + T020 + ... + T032) in parallel`
 
 **Sequential Constraint** (Phase 4 - US2):
+
 - T010 (Update src/index.ts) - single file, no parallelization
 - T011 (Update src/core imports) - single batch
 - T012 (Update src/generators imports) - single batch
@@ -203,6 +206,7 @@ Phase 7 (Polish) ← DEPENDS ON Phase 6
 - T016-T017 (Verify compilation) - must be sequential
 
 **Optimal Execution Timeline**:
+
 - Day 1: Phase 1 (Setup) + Phase 3 (US1, parallel)
 - Day 2: Phase 4 (US2, sequential) + Phase 5 (US3, parallel with Phase 4)
 - Day 3: Phase 6 (US4) + Phase 7 (Polish)
@@ -225,13 +229,13 @@ This is a unified refactoring where all user stories must be completed together 
 ### Incremental Delivery Phases
 
 1. **Phase 1-3 (Days 1-2)**: File renaming (renames can be batched)
-   - Deliverable: All files renamed to kebab-case
+    - Deliverable: All files renamed to kebab-case
 
 2. **Phase 4-5 (Day 2-3)**: Import updates and test renaming
-   - Deliverable: Compilation successful, tests discover renamed files
+    - Deliverable: Compilation successful, tests discover renamed files
 
 3. **Phase 6-7 (Day 3)**: Validation and finalization
-   - Deliverable: Feature complete, ready for merge
+    - Deliverable: Feature complete, ready for merge
 
 ### Validation Checkpoints
 
@@ -245,18 +249,18 @@ This is a unified refactoring where all user stories must be completed together 
 
 ## Task Statistics
 
-| Metric | Value |
-|--------|-------|
-| **Total Tasks** | 40 |
-| **Setup Tasks** | 2 |
-| **Foundational Tasks** | 0 |
-| **US1 Tasks (Source Renaming)** | 7 |
-| **US2 Tasks (Import Updates)** | 8 |
-| **US3 Tasks (Test Renaming)** | 15 |
-| **US4 Tasks (Verification)** | 4 |
-| **Polish Tasks** | 4 |
-| **Parallelizable Tasks** | 26 (US1: 7 + US3: 15 + Polish: 4) |
-| **Sequential Tasks** | 14 (Setup: 2 + US2: 8 + US4: 4) |
+| Metric                          | Value                             |
+| ------------------------------- | --------------------------------- |
+| **Total Tasks**                 | 40                                |
+| **Setup Tasks**                 | 2                                 |
+| **Foundational Tasks**          | 0                                 |
+| **US1 Tasks (Source Renaming)** | 7                                 |
+| **US2 Tasks (Import Updates)**  | 8                                 |
+| **US3 Tasks (Test Renaming)**   | 15                                |
+| **US4 Tasks (Verification)**    | 4                                 |
+| **Polish Tasks**                | 4                                 |
+| **Parallelizable Tasks**        | 26 (US1: 7 + US3: 15 + Polish: 4) |
+| **Sequential Tasks**            | 14 (Setup: 2 + US2: 8 + US4: 4)   |
 
 ---
 
