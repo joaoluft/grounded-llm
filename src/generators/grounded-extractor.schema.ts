@@ -1,5 +1,5 @@
-import { z } from "zod";
-import { zodResponseFormat } from "openai/helpers/zod.mjs";
+import { z } from 'zod';
+import { zodResponseFormat } from 'openai/helpers/zod.mjs';
 
 /**
  * Wraps a developer-provided `ZodRawShape` (per research.md's field-naming
@@ -9,7 +9,10 @@ import { zodResponseFormat } from "openai/helpers/zod.mjs";
  */
 export function buildExtractionSchema<Fields extends z.ZodRawShape>(fields: Fields) {
   const nullableFields = Object.fromEntries(
-    Object.entries(fields).map(([key, fieldSchema]) => [key, (fieldSchema as z.ZodTypeAny).nullable()])
+    Object.entries(fields).map(([key, fieldSchema]) => [
+      key,
+      (fieldSchema as z.ZodTypeAny).nullable(),
+    ])
   ) as { [K in keyof Fields]: z.ZodNullable<Fields[K]> };
 
   const schema = z.object({
@@ -17,11 +20,11 @@ export function buildExtractionSchema<Fields extends z.ZodRawShape>(fields: Fiel
     reasoning: z.string(),
   });
 
-  const responseFormat = zodResponseFormat(schema, "grounded_extraction");
+  const responseFormat = zodResponseFormat(schema, 'grounded_extraction');
 
   return { schema, responseFormat };
 }
 
 export type ExtractionSchema<Fields extends z.ZodRawShape> = ReturnType<
   typeof buildExtractionSchema<Fields>
->["schema"];
+>['schema'];

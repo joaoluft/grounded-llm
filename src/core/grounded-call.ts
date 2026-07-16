@@ -1,9 +1,12 @@
-import OpenAI from "openai";
-import { LengthFinishReasonError, ContentFilterFinishReasonError } from "openai/error.mjs";
-import type { ChatCompletionParseParams, ParsedChatCompletion } from "openai/resources/beta/chat/completions.mjs";
-import type { GroundedCallConfig } from "./types.js";
-import { ModelUnavailableError, ContextTooLargeError, InvalidModelOutputError } from "./errors.js";
-import { estimateTokens, getMaxContextTokens } from "./contextWindow.js";
+import OpenAI from 'openai';
+import { LengthFinishReasonError, ContentFilterFinishReasonError } from 'openai/error.mjs';
+import type {
+  ChatCompletionParseParams,
+  ParsedChatCompletion,
+} from 'openai/resources/beta/chat/completions.mjs';
+import type { GroundedCallConfig } from './types.js';
+import { ModelUnavailableError, ContextTooLargeError, InvalidModelOutputError } from './errors.js';
+import { estimateTokens, getMaxContextTokens } from './context-window.js';
 
 /**
  * Shared base for components that call an OpenAI chat model with structured output,
@@ -22,28 +25,29 @@ export abstract class GroundedCall<TFallback = string> {
   protected readonly tone?: string;
 
   constructor(config: GroundedCallConfig<TFallback>) {
-    const isEmptyString = typeof config.fallbackValue === "string" && config.fallbackValue.trim().length === 0;
+    const isEmptyString =
+      typeof config.fallbackValue === 'string' && config.fallbackValue.trim().length === 0;
     if (config.fallbackValue === null || isEmptyString) {
-      throw new Error("GroundedCall: `fallbackValue`, when provided, must not be empty.");
+      throw new Error('GroundedCall: `fallbackValue`, when provided, must not be empty.');
     }
     this.fallbackValue = config.fallbackValue;
 
     if (config.client) {
       this.client = config.client;
       if (config.model !== undefined && config.model.trim().length === 0) {
-        throw new Error("GroundedCall: `model` must not be an empty string.");
+        throw new Error('GroundedCall: `model` must not be an empty string.');
       }
-      this.model = config.model ?? "gpt-4o-mini";
+      this.model = config.model ?? 'gpt-4o-mini';
     } else {
       if (config.model !== undefined && config.model.trim().length === 0) {
-        throw new Error("GroundedCall: `model` must not be an empty string.");
+        throw new Error('GroundedCall: `model` must not be an empty string.');
       }
-      this.model = config.model ?? "gpt-4o-mini";
+      this.model = config.model ?? 'gpt-4o-mini';
 
-      const apiKey = config.apiKey ?? process.env["OPENAI_API_KEY"];
+      const apiKey = config.apiKey ?? process.env['OPENAI_API_KEY'];
       if (!apiKey || apiKey.trim().length === 0) {
         throw new Error(
-          "GroundedCall: no `apiKey` provided and OPENAI_API_KEY is not set in the environment."
+          'GroundedCall: no `apiKey` provided and OPENAI_API_KEY is not set in the environment.'
         );
       }
       this.client = new OpenAI({ apiKey });
@@ -92,12 +96,15 @@ export abstract class GroundedCall<TFallback = string> {
    */
   protected async callModel<Params extends ChatCompletionParseParams>(
     params: Params
-  ): Promise<NonNullable<ParsedChatCompletion<unknown>["choices"][number]["message"]["parsed"]>> {
+  ): Promise<NonNullable<ParsedChatCompletion<unknown>['choices'][number]['message']['parsed']>> {
     let completion: ParsedChatCompletion<unknown>;
     try {
       completion = await this.client.beta.chat.completions.parse(params);
     } catch (error) {
-      if (error instanceof LengthFinishReasonError || error instanceof ContentFilterFinishReasonError) {
+      if (
+        error instanceof LengthFinishReasonError ||
+        error instanceof ContentFilterFinishReasonError
+      ) {
         throw new InvalidModelOutputError(
           `Model response failed structured output validation: ${error.message}`,
           { cause: error }
@@ -114,7 +121,9 @@ export abstract class GroundedCall<TFallback = string> {
       throw new InvalidModelOutputError(`Model refused to respond: ${message.refusal}`);
     }
     if (!message || message.parsed === null || message.parsed === undefined) {
-      throw new InvalidModelOutputError("Model response could not be parsed against the expected schema.");
+      throw new InvalidModelOutputError(
+        'Model response could not be parsed against the expected schema.'
+      );
     }
     return message.parsed;
   }

@@ -1,7 +1,10 @@
-import { zodResponseFormat } from "openai/helpers/zod.mjs";
-import { GroundedCall } from "../core/GroundedCall.js";
-import type { GroundedCallConfig, GroundedCallResult } from "../core/types.js";
-import { groundedEnrichmentSchema, type GroundedEnrichmentOutput } from "./GroundedEnricher.schema.js";
+import { zodResponseFormat } from 'openai/helpers/zod.mjs';
+import { GroundedCall } from '../core/grounded-call.js';
+import type { GroundedCallConfig, GroundedCallResult } from '../core/types.js';
+import {
+  groundedEnrichmentSchema,
+  type GroundedEnrichmentOutput,
+} from './grounded-enricher.schema.js';
 
 export interface EnrichmentRequest {
   baseContent: string;
@@ -36,11 +39,11 @@ export class GroundedEnricher extends GroundedCall {
 
   async generate(request: EnrichmentRequest): Promise<GroundedCallResult> {
     if (!request.baseContent || request.baseContent.trim().length === 0) {
-      throw new Error("GroundedEnricher: `baseContent` must be a non-empty string.");
+      throw new Error('GroundedEnricher: `baseContent` must be a non-empty string.');
     }
 
     if (!request.context || request.context.trim().length === 0) {
-      return this.buildUnchangedResult("Context was empty or blank.", request.baseContent);
+      return this.buildUnchangedResult('Context was empty or blank.', request.baseContent);
     }
 
     const userPrompt = this.buildUserPrompt(request);
@@ -50,15 +53,19 @@ export class GroundedEnricher extends GroundedCall {
     const output = (await this.callModel({
       model: this.model,
       temperature: this.temperature,
-      response_format: zodResponseFormat(groundedEnrichmentSchema, "grounded_enrichment"),
+      response_format: zodResponseFormat(groundedEnrichmentSchema, 'grounded_enrichment'),
       messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
       ],
     })) as GroundedEnrichmentOutput;
 
     if (!output.sufficient_context || output.extracted_facts.length === 0) {
-      return this.buildUnchangedResult(output.reasoning, request.baseContent, output.extracted_facts);
+      return this.buildUnchangedResult(
+        output.reasoning,
+        request.baseContent,
+        output.extracted_facts
+      );
     }
 
     return {

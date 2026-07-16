@@ -2,7 +2,7 @@
 export class ModelUnavailableError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {
     super(message, options);
-    this.name = "ModelUnavailableError";
+    this.name = 'ModelUnavailableError';
   }
 }
 
@@ -10,7 +10,7 @@ export class ModelUnavailableError extends Error {
 export class ContextTooLargeError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "ContextTooLargeError";
+    this.name = 'ContextTooLargeError';
   }
 }
 
@@ -18,6 +18,6 @@ export class ContextTooLargeError extends Error {
 export class InvalidModelOutputError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {
     super(message, options);
-    this.name = "InvalidModelOutputError";
+    this.name = 'InvalidModelOutputError';
   }
 }

@@ -1,10 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { z } from "zod";
-import { GroundedExtractor } from "../../../src/generators/GroundedExtractor.js";
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { z } from 'zod';
+import { GroundedExtractor } from '../../../src/generators/grounded-extractor.js';
 
 const parseMock = vi.fn();
 
-vi.mock("openai", () => {
+vi.mock('openai', () => {
   return {
     default: vi.fn().mockImplementation(() => ({
       beta: { chat: { completions: { parse: parseMock } } },
@@ -18,7 +18,12 @@ const fallbackValue = { name: null, email: null, intent: null };
 type Case = {
   label: string;
   message: string;
-  partialOutput: { name: string | null; email: string | null; intent: string | null; reasoning: string };
+  partialOutput: {
+    name: string | null;
+    email: string | null;
+    intent: string | null;
+    reasoning: string;
+  };
 };
 
 // SC-106: on a fixed evaluation set of partial-coverage messages, non-strict mode
@@ -31,14 +36,14 @@ const CASES: Case[] = Array.from({ length: 20 }, (_, i) => ({
     name: `User${i}`,
     email: null,
     intent: null,
-    reasoning: "Only the name was mentioned in the message.",
+    reasoning: 'Only the name was mentioned in the message.',
   },
 }));
 
-describe("SC-106: strict vs non-strict behavior on partial extraction", () => {
+describe('SC-106: strict vs non-strict behavior on partial extraction', () => {
   beforeEach(() => {
     parseMock.mockReset();
-    process.env["OPENAI_API_KEY"] = "test-key";
+    process.env['OPENAI_API_KEY'] = 'test-key';
   });
 
   it(`non-strict mode returns partial data (no fallback) for 100% of ${CASES.length} partial-coverage cases`, async () => {
@@ -49,7 +54,11 @@ describe("SC-106: strict vs non-strict behavior on partial extraction", () => {
       });
       const extractor = new GroundedExtractor({ fields, fallbackValue, strict: false });
       const result = await extractor.extract({ message: testCase.message });
-      if (!result.usedFallback && result.data.name === testCase.partialOutput.name && result.data.email === null) {
+      if (
+        !result.usedFallback &&
+        result.data.name === testCase.partialOutput.name &&
+        result.data.email === null
+      ) {
         partialCount += 1;
       }
     }
