@@ -1,6 +1,6 @@
 {
   "name": "grounded-llm",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "TypeScript library to reduce hallucination in LLM-generated responses and decisions by grounding them in retrieved context.",
   "type": "module",
   "license": "MIT",
