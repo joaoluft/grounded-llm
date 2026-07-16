@@ -25,6 +25,31 @@ answer.
 > `openai` client internally (injected by you or created from an `apiKey`); no other
 > model provider is supported in this release.
 
+### How it fights hallucination: chain-of-thought grounding
+
+Every component in this library forces the model through the same explicit
+**chain-of-thought** sequence instead of asking for a final answer directly:
+
+1. **Extract** — the model pulls the literal, verbatim excerpts from the context that
+   are relevant to the request. No paraphrasing is allowed at this step.
+2. **Judge sufficiency** — using only those excerpts, the model explicitly decides
+   whether the context is enough to respond safely (contradictions or partial matches
+   count as insufficient).
+3. **Answer or fall back** — only if the context was judged sufficient does the model
+   write a final answer, and it may use only what was extracted in step 1. Otherwise,
+   the call returns the developer-configured fallback instead of letting the model
+   invent something plausible.
+4. **Explain** — the model must always return `reasoning`, an explanation that ties
+   the extracted excerpts to the sufficiency decision and (when applicable) to the
+   final answer.
+
+This forced extract → judge → answer → explain pipeline, enforced through structured
+output (schema-validated, not just a prompting convention), is what makes hallucination
+structurally harder: the model cannot skip straight to a confident-sounding answer
+without first grounding it in literal text it can point to. Every result exposes this
+reasoning chain via `result.extractedFacts` and `result.reasoning`, so you can inspect
+*why* the model answered — or refused to — instead of trusting a black-box output.
+
 ### Generators
 
 The library offers three components, each for a different context-grounded LLM call
@@ -186,6 +211,33 @@ gerar a resposta final.
 > **Nesta versão, o suporte é exclusivo à OpenAI.** O componente usa o client oficial
 > `openai` internamente (injetado por você ou criado a partir de uma `apiKey`); não há
 > suporte a outros provedores de modelo nesta release.
+
+### Como o combate à alucinação funciona: chain-of-thought ancorado em contexto
+
+Todos os componentes da biblioteca forçam o modelo a passar pela mesma sequência
+explícita de **chain-of-thought** (cadeia de raciocínio), em vez de pedir a resposta
+final diretamente:
+
+1. **Extrair** — o modelo retira do contexto os trechos literais e relevantes para a
+   solicitação, verbatim. Paráfrase não é permitida nesta etapa.
+2. **Julgar suficiência** — usando apenas esses trechos extraídos, o modelo decide
+   explicitamente se o contexto é suficiente para responder com segurança
+   (contradições ou correspondências parciais contam como insuficientes).
+3. **Responder ou usar fallback** — só se o contexto for julgado suficiente o modelo
+   escreve uma resposta final, e ela só pode usar o que foi extraído no passo 1. Caso
+   contrário, a chamada retorna o fallback configurado pelo desenvolvedor, em vez de
+   deixar o modelo inventar algo plausível.
+4. **Explicar** — o modelo sempre deve retornar `reasoning`, uma explicação que
+   conecta os trechos extraídos à decisão de suficiência e (quando aplicável) à
+   resposta final.
+
+Esse pipeline forçado de extrair → julgar → responder → explicar, garantido via saída
+estruturada (validada por schema, não apenas uma convenção de prompt), é o que torna a
+alucinação estruturalmente mais difícil: o modelo não consegue pular direto para uma
+resposta com aparência confiante sem antes ancorá-la em texto literal que ele pode
+apontar. Todo resultado expõe essa cadeia de raciocínio via `result.extractedFacts` e
+`result.reasoning`, permitindo inspecionar *por que* o modelo respondeu — ou se recusou
+a responder — em vez de confiar em uma saída caixa-preta.
 
 ### Generators
 
