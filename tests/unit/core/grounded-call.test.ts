@@ -11,6 +11,19 @@ import {
   InvalidModelOutputError,
 } from '../../../src/core/errors.js';
 import type { GroundedCallConfig } from '../../../src/core/types.js';
+import { OpenAiModelClient } from '../../../src/core/model-client.js';
+import { LangChainModelClient } from '../../../src/core/langchain-model-client.js';
+
+/** Minimal fake satisfying the `BaseChatModel` surface this feature relies on. */
+function makeFakeLangchainModel(
+  invoke: (messages: unknown) => Promise<unknown> = async () => ({
+    ok: true,
+  })
+) {
+  return {
+    withStructuredOutput: vi.fn(() => ({ invoke })),
+  } as any;
+}
 
 const parseMock = vi.fn();
 
@@ -34,6 +47,12 @@ class TestableGroundedCall extends GroundedCall {
   }
   public getClient() {
     return this.client;
+  }
+  public getModelClient() {
+    return this.modelClient;
+  }
+  public getMaxContextTokens() {
+    return this.maxContextTokens;
   }
   public assertLimit(promptText: string) {
     return this.assertContextWithinLimit(promptText);
@@ -87,6 +106,137 @@ describe('GroundedCall construction', () => {
     const injectedClient = { beta: { chat: { completions: { parse: vi.fn() } } } } as any;
     const call = new TestableGroundedCall({ fallbackValue: 'sorry', client: injectedClient });
     expect(call.getClient()).toBe(injectedClient);
+  });
+});
+
+describe('GroundedCall ModelClient dispatch (006-langchain-model-support, Foundational)', () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env['OPENAI_API_KEY'] = 'test-key';
+  });
+
+  it('uses an OpenAiModelClient, and still calls client.beta.chat.completions.parse, when langchainModel is not provided (FR-010)', async () => {
+    parseMock.mockResolvedValueOnce({
+      choices: [{ message: { refusal: null, parsed: { ok: true } } }],
+    });
+    const call = new TestableGroundedCall({ fallbackValue: 'sorry' });
+    expect(call.getModelClient()).toBeInstanceOf(OpenAiModelClient);
+    await expect(call.call({} as any)).resolves.toEqual({ ok: true });
+    expect(parseMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('GroundedCall langchainModel dispatch (006-langchain-model-support, US1)', () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    delete process.env['OPENAI_API_KEY'];
+  });
+
+  it('uses a LangChainModelClient, and never touches an OpenAI client, when langchainModel is provided', async () => {
+    const fakeModel = makeFakeLangchainModel(async () => ({ ok: true }));
+    const call = new TestableGroundedCall({ langchainModel: fakeModel });
+
+    expect(call.getModelClient()).toBeInstanceOf(LangChainModelClient);
+    expect(call.getClient()).toBeUndefined();
+    await expect(
+      call.call({
+        model: 'ignored',
+        temperature: 0,
+        response_format: { json_schema: { name: 'x', schema: {} } },
+        messages: [{ role: 'user', content: 'hi' }],
+      } as any)
+    ).resolves.toEqual({ ok: true });
+    expect(parseMock).not.toHaveBeenCalled();
+  });
+
+  it('defaults maxContextTokens to 128000 when langchainModel is used without an explicit value (FR-004)', () => {
+    const call = new TestableGroundedCall({ langchainModel: makeFakeLangchainModel() });
+    expect(call.getMaxContextTokens()).toBe(128_000);
+  });
+
+  it('respects an explicit maxContextTokens when provided together with langchainModel (FR-005)', () => {
+    const call = new TestableGroundedCall({
+      langchainModel: makeFakeLangchainModel(),
+      maxContextTokens: 5_000,
+    });
+    expect(call.getMaxContextTokens()).toBe(5_000);
+    expect(() => call.assertLimit('a'.repeat(100_000))).toThrow(ContextTooLargeError);
+  });
+
+  it('composes identity/rules/tone and applies fallbackValue identically regardless of backend (FR-009)', () => {
+    const call = new TestableGroundedCall({
+      langchainModel: makeFakeLangchainModel(),
+      fallbackValue: 'sorry',
+      identity: 'You are the support assistant for Acme Corp.',
+      rules: 'Always respond in a formal tone.',
+      tone: 'Seja empático e gentil.',
+    });
+    const prompt = call.getSystemPrompt('BASE INSTRUCTIONS');
+    const baseIndex = prompt.indexOf('BASE INSTRUCTIONS');
+    const identityIndex = prompt.indexOf('You are the support assistant for Acme Corp.');
+    const rulesIndex = prompt.indexOf('Always respond in a formal tone.');
+    const toneIndex = prompt.indexOf('Seja empático e gentil.');
+    expect(baseIndex).toBeLessThan(identityIndex);
+    expect(identityIndex).toBeLessThan(rulesIndex);
+    expect(rulesIndex).toBeLessThan(toneIndex);
+  });
+});
+
+describe('GroundedCall mutual exclusivity: langchainModel vs OpenAI-native fields (006-langchain-model-support, US3)', () => {
+  beforeEach(() => {
+    delete process.env['OPENAI_API_KEY'];
+  });
+
+  it('throws when langchainModel is combined with client', () => {
+    const injectedClient = { beta: { chat: { completions: { parse: vi.fn() } } } } as any;
+    expect(
+      () =>
+        new TestableGroundedCall({
+          langchainModel: makeFakeLangchainModel(),
+          client: injectedClient,
+        })
+    ).toThrow(/mutually exclusive/i);
+  });
+
+  it('throws when langchainModel is combined with apiKey', () => {
+    expect(
+      () =>
+        new TestableGroundedCall({
+          langchainModel: makeFakeLangchainModel(),
+          apiKey: 'sk-test',
+        })
+    ).toThrow(/mutually exclusive/i);
+  });
+
+  it('throws when langchainModel is combined with model', () => {
+    expect(
+      () =>
+        new TestableGroundedCall({
+          langchainModel: makeFakeLangchainModel(),
+          model: 'gpt-4o-mini',
+        })
+    ).toThrow(/mutually exclusive/i);
+  });
+
+  it('throws when langchainModel is combined with temperature', () => {
+    expect(
+      () =>
+        new TestableGroundedCall({
+          langchainModel: makeFakeLangchainModel(),
+          temperature: 0.5,
+        })
+    ).toThrow(/mutually exclusive/i);
+  });
+
+  it('does not attempt any model call before throwing', () => {
+    expect(
+      () =>
+        new TestableGroundedCall({
+          langchainModel: makeFakeLangchainModel(),
+          model: 'gpt-4o-mini',
+        })
+    ).toThrow();
+    expect(parseMock).not.toHaveBeenCalled();
   });
 });
 

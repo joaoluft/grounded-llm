@@ -17,6 +17,28 @@ function mockParsedResponse(parsed: unknown) {
   });
 }
 
+describe('GroundedEnricher langchainModel dispatch (006-langchain-model-support, US1)', () => {
+  it('routes the call through a fake LangChain chat model instead of an OpenAI client', async () => {
+    const invoke = vi.fn(async () => ({
+      extracted_facts: ['Ships in 3 business days.'],
+      sufficient_context: true,
+      reasoning: 'The context adds shipping time.',
+      enriched_text: 'Thanks for your order! Ships in 3 business days.',
+    }));
+    const fakeModel = { withStructuredOutput: vi.fn(() => ({ invoke })) } as any;
+
+    const enricher = new GroundedEnricher({ langchainModel: fakeModel });
+    const result = await enricher.generate({
+      baseContent: 'Thanks for your order!',
+      context: 'Ships in 3 business days.',
+    });
+
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(parseMock).not.toHaveBeenCalled();
+    expect(result.finalAnswer).toBe('Thanks for your order! Ships in 3 business days.');
+  });
+});
+
 describe('GroundedEnricher - sufficient-context happy path (US1)', () => {
   beforeEach(() => {
     parseMock.mockReset();

@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  ⚠️ <strong>This version works exclusively with the OpenAI API.</strong><br/>
-  ⚠️ <strong>Esta versão funciona exclusivamente com a API da OpenAI.</strong>
+  ⚠️ <strong>This version works with the OpenAI API — directly, or via an optional LangChain chat model.</strong><br/>
+  ⚠️ <strong>Esta versão funciona com a API da OpenAI — diretamente, ou via um chat model LangChain opcional.</strong>
 </p>
 
 ---
@@ -21,9 +21,11 @@ TypeScript library to reduce hallucination in LLM-generated responses, by forcin
 literal fact extraction and an explicit sufficiency check before generating a final
 answer.
 
-> **This version supports OpenAI exclusively.** The component uses the official
-> `openai` client internally (injected by you or created from an `apiKey`); no other
-> model provider is supported in this release.
+> **This version targets the OpenAI API.** By default, each component uses the
+> official `openai` client internally (injected by you or created from an `apiKey`).
+> Optionally, you can instead pass an already-configured LangChain chat model via
+> `langchainModel` — see ["Using a LangChain
+> model"](#using-a-langchain-model-langsmith-tracing) below.
 
 ### How it fights hallucination: chain-of-thought grounding
 
@@ -93,6 +95,40 @@ All three are appended as extra sections in the same system prompt, in the order
 grounding/anti-hallucination instructions — they complement persona and style, but
 never override the grounding rules.
 
+#### Using a LangChain model (LangSmith tracing)
+
+By default, every component talks to the OpenAI API directly (standalone mode) — no
+LangChain dependency required. If your application already runs on LangChain and you
+want these calls to show up in your LangSmith traces alongside the rest of your
+pipeline, pass an already-configured LangChain chat model via `langchainModel`
+instead of `client`/`apiKey`/`model`/`temperature`:
+
+```ts
+import { ChatOpenAI } from '@langchain/openai';
+import { GroundedGenerator } from 'grounded-llm';
+
+const langchainModel = new ChatOpenAI({ model: 'gpt-4o-mini', temperature: 0 });
+
+const generator = new GroundedGenerator({
+  langchainModel,
+  fallbackValue: "Sorry, I don't have enough information to answer that.",
+});
+```
+
+- `langchainModel` is **mutually exclusive** with `client`, `apiKey`, `model`, and
+  `temperature` — the chat model already carries its own credentials, model id, and
+  temperature, so combining it with any of those throws a configuration error at
+  construction.
+- `maxContextTokens` still applies; when omitted in this mode, a conservative default
+  of 128 000 tokens is used (there's no OpenAI `model` id to derive a known limit
+  from).
+- `identity`/`rules`/`tone`/`fallbackValue`, the result shape, and the operational
+  error types (`ModelUnavailableError`/`ContextTooLargeError`/`InvalidModelOutputError`)
+  all behave identically whether you use `client`/`apiKey` or `langchainModel`.
+- `@langchain/core` is an **optional peer dependency** — install it (and whichever
+  LangChain chat model integration you use, e.g. `@langchain/openai`) only if you use
+  `langchainModel`. Standalone consumers never need it.
+
 ### GroundedGenerator
 
 Generates a final answer strictly grounded in retrieved context, or falls back to a
@@ -107,7 +143,8 @@ const generator = new GroundedGenerator({
   // Optional: fallbackValue (see "Generators" above for what happens when it's
   // omitted), model (default "gpt-4o-mini"), apiKey (default OPENAI_API_KEY),
   // temperature (default 0), maxContextTokens, or an already-configured `client`
-  // instance from the `openai` package. Also accepts identity/rules/tone.
+  // instance from the `openai` package (or `langchainModel` instead — see above).
+  // Also accepts identity/rules/tone.
 });
 
 const result = await generator.generate({
@@ -121,9 +158,11 @@ console.log(result.extractedFacts); // ["Paris is the capital of France."]
 console.log(result.reasoning); // explanation connecting facts to the answer
 ```
 
-`GroundedGenerator` is standalone — it depends only on the official `openai` client, so
-it can be plugged into any pipeline (LangGraph, a manual chain, or a direct call) without
-requiring any third-party types.
+`GroundedGenerator` is standalone by default — it depends only on the official `openai`
+client, so it can be plugged into any pipeline (LangGraph, a manual chain, or a direct
+call) without requiring any third-party types. See ["Using a LangChain
+model"](#using-a-langchain-model-langsmith-tracing) above if you'd rather route calls
+through an existing LangChain chat model.
 
 #### Error handling
 
@@ -148,7 +187,7 @@ import { GroundedEnricher } from 'grounded-llm';
 
 const enricher = new GroundedEnricher({
   fallbackValue: 'N/A', // required for API consistency; never actually returned in normal use (see note below)
-  // Also accepts identity/rules/tone, plus the same config options as GroundedGenerator.
+  // Also accepts identity/rules/tone and langchainModel, plus the same config options as GroundedGenerator.
 });
 
 const result = await enricher.generate({
@@ -183,7 +222,7 @@ import { z } from 'zod';
 const extractor = new GroundedExtractor({
   fields: { name: z.string(), email: z.string() },
   fallbackValue: { name: null, email: null }, // whole object, same shape as `fields`
-  // Optional: strict (default false) — see below. Also accepts identity/rules/tone.
+  // Optional: strict (default false) — see below. Also accepts identity/rules/tone and langchainModel.
 });
 
 const result = await extractor.extract({
@@ -225,9 +264,11 @@ Biblioteca TypeScript para reduzir alucinação em respostas geradas por LLM, fo
 extração literal de fatos e uma checagem explícita de suficiência de contexto antes de
 gerar a resposta final.
 
-> **Nesta versão, o suporte é exclusivo à OpenAI.** O componente usa o client oficial
-> `openai` internamente (injetado por você ou criado a partir de uma `apiKey`); não há
-> suporte a outros provedores de modelo nesta release.
+> **Nesta versão, o alvo é a API da OpenAI.** Por padrão, cada componente usa o client
+> oficial `openai` internamente (injetado por você ou criado a partir de uma
+> `apiKey`). Opcionalmente, você pode em vez disso passar um chat model LangChain já
+> configurado via `langchainModel` — veja ["Usando um modelo
+> LangChain"](#usando-um-modelo-langchain-tracing-do-langsmith) abaixo.
 
 ### Como o combate à alucinação funciona: chain-of-thought ancorado em contexto
 
@@ -299,6 +340,41 @@ Os três são anexados como seções extras no mesmo system prompt, na ordem `id
 `rules` → `tone`, **sempre depois** das instruções internas de ancoragem/anti-alucinação
 — eles complementam persona e estilo, mas nunca sobrescrevem as regras de grounding.
 
+#### Usando um modelo LangChain (tracing do LangSmith)
+
+Por padrão, todos os componentes falam diretamente com a API da OpenAI (modo
+standalone) — sem exigir nenhuma dependência do LangChain. Se sua aplicação já roda
+sobre LangChain e você quer que essas chamadas apareçam nos seus traces do LangSmith
+junto com o restante do seu pipeline, passe um chat model LangChain já configurado via
+`langchainModel`, em vez de `client`/`apiKey`/`model`/`temperature`:
+
+```ts
+import { ChatOpenAI } from '@langchain/openai';
+import { GroundedGenerator } from 'grounded-llm';
+
+const langchainModel = new ChatOpenAI({ model: 'gpt-4o-mini', temperature: 0 });
+
+const generator = new GroundedGenerator({
+  langchainModel,
+  fallbackValue: 'Desculpe, não tenho informação suficiente para responder isso.',
+});
+```
+
+- `langchainModel` é **mutuamente exclusivo** com `client`, `apiKey`, `model` e
+  `temperature` — o chat model já traz suas próprias credenciais, model id e
+  temperatura, então combiná-lo com qualquer um desses campos lança um erro de
+  configuração na construção.
+- `maxContextTokens` continua valendo; quando omitido nesse modo, um limite
+  conservador padrão de 128.000 tokens é usado (não há um `model` id da OpenAI do
+  qual derivar um limite conhecido).
+- `identity`/`rules`/`tone`/`fallbackValue`, o formato do resultado, e os tipos de
+  erro operacionais (`ModelUnavailableError`/`ContextTooLargeError`/
+  `InvalidModelOutputError`) se comportam de forma idêntica, seja usando
+  `client`/`apiKey` ou `langchainModel`.
+- `@langchain/core` é uma **peerDependency opcional** — instale-a (e a integração de
+  chat model LangChain que você usar, ex: `@langchain/openai`) apenas se for usar
+  `langchainModel`. Consumidores do modo standalone nunca precisam dela.
+
 ### GroundedGenerator
 
 Gera uma resposta final estritamente ancorada no contexto recuperado, ou recorre a um
@@ -313,7 +389,8 @@ const generator = new GroundedGenerator({
   // Opcional: fallbackValue (ver "Generators" acima para o que acontece quando
   // omitido), model (default "gpt-4o-mini"), apiKey (default OPENAI_API_KEY),
   // temperature (default 0), maxContextTokens, ou uma instância `client` já
-  // configurada do pacote `openai`. Também aceita identity/rules/tone.
+  // configurada do pacote `openai` (ou `langchainModel` em vez disso — veja acima).
+  // Também aceita identity/rules/tone.
 });
 
 const result = await generator.generate({
@@ -354,7 +431,7 @@ import { GroundedEnricher } from 'grounded-llm';
 
 const enricher = new GroundedEnricher({
   fallbackValue: 'N/A', // exigido por consistência de API; nunca é retornado em uso normal (ver nota abaixo)
-  // Também aceita identity/rules/tone, além das mesmas opções de configuração do GroundedGenerator.
+  // Também aceita identity/rules/tone e langchainModel, além das mesmas opções de configuração do GroundedGenerator.
 });
 
 const result = await enricher.generate({
@@ -390,7 +467,7 @@ import { z } from 'zod';
 const extractor = new GroundedExtractor({
   fields: { name: z.string(), email: z.string() },
   fallbackValue: { name: null, email: null }, // objeto completo, mesmo formato de `fields`
-  // Opcional: strict (default false) — veja abaixo. Também aceita identity/rules/tone.
+  // Opcional: strict (default false) — veja abaixo. Também aceita identity/rules/tone e langchainModel.
 });
 
 const result = await extractor.extract({

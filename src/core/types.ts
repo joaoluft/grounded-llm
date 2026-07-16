@@ -1,4 +1,5 @@
 import type OpenAI from 'openai';
+import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 
 /**
  * Generic over the fallback shape so components with a non-string fallback (e.g.
@@ -12,6 +13,17 @@ export interface GroundedCallConfig<TFallback = string> {
   apiKey?: string;
   /** Used only when `client` is not provided. Defaults to `"gpt-4o-mini"`. */
   model?: string;
+  /**
+   * Pre-configured LangChain chat model, used instead of a native OpenAI client so
+   * calls keep flowing through the developer's own LangChain/LangSmith tracing setup
+   * (006-langchain-model-support FR-001/FR-002). Mutually exclusive with `client`,
+   * `apiKey`, `model`, and `temperature` — the chat model already carries its own
+   * credentials, model id, and temperature; combining it with any of those throws a
+   * configuration error at construction (FR-003). When used without an explicit
+   * `maxContextTokens`, a conservative default of 128 000 tokens applies (FR-004),
+   * since there is no OpenAI `model` id to derive a known limit from.
+   */
+  langchainModel?: BaseChatModel;
   /** Optional. When omitted, the component must produce a real result instead of a canned fallback (003-optional-fallback FR-001). */
   fallbackValue?: TFallback;
   /** Defaults to `0` (constitution principle 6). */

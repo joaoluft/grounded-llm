@@ -24,6 +24,24 @@ const fields = {
 };
 const fallbackValue = { name: null, email: null };
 
+describe('GroundedExtractor langchainModel dispatch (006-langchain-model-support, US1)', () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+  });
+
+  it('routes the call through a fake LangChain chat model instead of an OpenAI client', async () => {
+    const invoke = vi.fn(async () => ({ name: 'Ada', email: null, reasoning: 'partial' }));
+    const fakeModel = { withStructuredOutput: vi.fn(() => ({ invoke })) } as any;
+
+    const extractor = new GroundedExtractor({ fields, langchainModel: fakeModel });
+    const result = await extractor.extract({ message: 'My name is Ada' });
+
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(parseMock).not.toHaveBeenCalled();
+    expect(result.data).toEqual({ name: 'Ada', email: null });
+  });
+});
+
 describe('GroundedExtractor - construction/config validation (US2)', () => {
   beforeEach(() => {
     parseMock.mockReset();

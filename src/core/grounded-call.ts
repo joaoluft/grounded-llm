@@ -1,12 +1,14 @@
 import OpenAI from 'openai';
-import { LengthFinishReasonError, ContentFilterFinishReasonError } from 'openai/error.mjs';
-import type {
-  ChatCompletionParseParams,
-  ParsedChatCompletion,
-} from 'openai/resources/beta/chat/completions.mjs';
+import type { ChatCompletionParseParams } from 'openai/resources/beta/chat/completions.mjs';
 import type { GroundedCallConfig } from './types.js';
-import { ModelUnavailableError, ContextTooLargeError, InvalidModelOutputError } from './errors.js';
+import { ContextTooLargeError } from './errors.js';
 import { estimateTokens, getMaxContextTokens } from './context-window.js';
+import type { ModelClient, ParsedModelOutput } from './model-client.js';
+import { OpenAiModelClient } from './model-client.js';
+import { LangChainModelClient } from './langchain-model-client.js';
+
+/** Default context-window limit used in LangChain mode, where there is no OpenAI `model` id to derive a known limit from (006-langchain-model-support FR-004). */
+const LANGCHAIN_MODE_DEFAULT_MAX_CONTEXT_TOKENS = 128_000;
 
 /**
  * Shared base for components that call an OpenAI chat model with structured output,
@@ -15,7 +17,8 @@ import { estimateTokens, getMaxContextTokens } from './context-window.js';
  * free of `GroundedGenerator`-specific behavior.
  */
 export abstract class GroundedCall<TFallback = string> {
-  protected readonly client: OpenAI;
+  protected readonly client?: OpenAI;
+  protected readonly modelClient: ModelClient;
   protected readonly model: string;
   protected readonly fallbackValue?: TFallback;
   protected readonly temperature: number;
@@ -32,12 +35,30 @@ export abstract class GroundedCall<TFallback = string> {
     }
     this.fallbackValue = config.fallbackValue;
 
-    if (config.client) {
+    if (config.langchainModel) {
+      if (
+        config.client ||
+        config.apiKey !== undefined ||
+        config.model !== undefined ||
+        config.temperature !== undefined
+      ) {
+        throw new Error(
+          'GroundedCall: `langchainModel` cannot be combined with `client`, `apiKey`, `model`, or ' +
+            '`temperature` — these two modes are mutually exclusive. The LangChain chat model already ' +
+            'carries its own credentials, model id, and temperature.'
+        );
+      }
+      this.model = 'langchain-model';
+      this.modelClient = new LangChainModelClient(config.langchainModel);
+      this.maxContextTokens = config.maxContextTokens ?? LANGCHAIN_MODE_DEFAULT_MAX_CONTEXT_TOKENS;
+    } else if (config.client) {
       this.client = config.client;
       if (config.model !== undefined && config.model.trim().length === 0) {
         throw new Error('GroundedCall: `model` must not be an empty string.');
       }
       this.model = config.model ?? 'gpt-4o-mini';
+      this.modelClient = new OpenAiModelClient(this.client);
+      this.maxContextTokens = config.maxContextTokens ?? getMaxContextTokens(this.model);
     } else {
       if (config.model !== undefined && config.model.trim().length === 0) {
         throw new Error('GroundedCall: `model` must not be an empty string.');
@@ -51,10 +72,11 @@ export abstract class GroundedCall<TFallback = string> {
         );
       }
       this.client = new OpenAI({ apiKey });
+      this.modelClient = new OpenAiModelClient(this.client);
+      this.maxContextTokens = config.maxContextTokens ?? getMaxContextTokens(this.model);
     }
 
     this.temperature = config.temperature ?? 0;
-    this.maxContextTokens = config.maxContextTokens ?? getMaxContextTokens(this.model);
     this.identity = config.identity;
     this.rules = config.rules;
     this.tone = config.tone;
@@ -93,38 +115,14 @@ export abstract class GroundedCall<TFallback = string> {
   /**
    * Calls the model with structured-output parsing, translating failures into the
    * distinct operational-error types (FR-010, FR-012). Never retries automatically.
+   * Delegates to `this.modelClient`, which is either `OpenAiModelClient` (standalone
+   * mode) or `LangChainModelClient` (006-langchain-model-support) — the two backends
+   * share this exact same call surface, so no other method needs to know which one
+   * is in use.
    */
   protected async callModel<Params extends ChatCompletionParseParams>(
     params: Params
-  ): Promise<NonNullable<ParsedChatCompletion<unknown>['choices'][number]['message']['parsed']>> {
-    let completion: ParsedChatCompletion<unknown>;
-    try {
-      completion = await this.client.beta.chat.completions.parse(params);
-    } catch (error) {
-      if (
-        error instanceof LengthFinishReasonError ||
-        error instanceof ContentFilterFinishReasonError
-      ) {
-        throw new InvalidModelOutputError(
-          `Model response failed structured output validation: ${error.message}`,
-          { cause: error }
-        );
-      }
-      throw new ModelUnavailableError(
-        `Call to the OpenAI model failed: ${error instanceof Error ? error.message : String(error)}`,
-        { cause: error }
-      );
-    }
-
-    const message = completion.choices[0]?.message;
-    if (message?.refusal) {
-      throw new InvalidModelOutputError(`Model refused to respond: ${message.refusal}`);
-    }
-    if (!message || message.parsed === null || message.parsed === undefined) {
-      throw new InvalidModelOutputError(
-        'Model response could not be parsed against the expected schema.'
-      );
-    }
-    return message.parsed;
+  ): Promise<ParsedModelOutput> {
+    return this.modelClient.parse(params);
   }
 }

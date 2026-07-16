@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type OpenAI from 'openai';
+import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { GroundedCall } from '../core/grounded-call.js';
 import { buildExtractionSchema } from './grounded-extractor.schema.js';
 
@@ -19,6 +20,14 @@ export interface GroundedExtractionConfig<Fields extends z.ZodRawShape> {
   apiKey?: string;
   model?: string;
   temperature?: number;
+  /**
+   * Pre-configured LangChain chat model, used instead of a native OpenAI client so
+   * calls keep flowing through the developer's own LangChain/LangSmith tracing setup
+   * (006-langchain-model-support). Mutually exclusive with `client`/`apiKey`/`model`/
+   * `temperature`. Same field and behavior as `GroundedCallConfig.langchainModel` —
+   * declared here too because this interface does not extend `GroundedCallConfig`.
+   */
+  langchainModel?: BaseChatModel;
   maxContextTokens?: number;
   /** Optional developer-supplied role/objective for this call, appended after the built-in instructions. */
   identity?: string;
