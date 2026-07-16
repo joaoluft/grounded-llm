@@ -78,16 +78,20 @@ of the model's output whenever the component judges its own result unsafe to ret
 - `GroundedExtractor` always returns the model's raw extraction (`null` for fields it
   couldn't find), ignoring `strict`, instead of substituting a fallback object.
 
-All three also accept, at construction, two optional parameters to customize the
+All three also accept, at construction, three optional parameters to customize the
 model's behavior for that call:
 
 - **`identity`** — the model's role/objective for this call (e.g. "You are the
   support assistant for Acme Corp.").
-- **`rules`** — additional rules constraining the call (e.g. tone, style).
+- **`rules`** — additional rules constraining the call (e.g. style, domain-specific
+  constraints).
+- **`tone`** — the desired tone/personality for the response (e.g. "be empathetic,
+  kind, and natural" — useful for chatbot scenarios).
 
-Both are appended as an extra section in the same system prompt, **always after**
-the component's built-in grounding/anti-hallucination instructions — they complement
-persona and tone, but never override the grounding rules.
+All three are appended as extra sections in the same system prompt, in the order
+`identity` → `rules` → `tone`, **always after** the component's built-in
+grounding/anti-hallucination instructions — they complement persona and style, but
+never override the grounding rules.
 
 ### GroundedGenerator
 
@@ -103,7 +107,7 @@ const generator = new GroundedGenerator({
   // Optional: fallbackValue (see "Generators" above for what happens when it's
   // omitted), model (default "gpt-4o-mini"), apiKey (default OPENAI_API_KEY),
   // temperature (default 0), maxContextTokens, or an already-configured `client`
-  // instance from the `openai` package. Also accepts identity/rules.
+  // instance from the `openai` package. Also accepts identity/rules/tone.
 });
 
 const result = await generator.generate({
@@ -144,7 +148,7 @@ import { GroundedEnricher } from "grounded-llm";
 
 const enricher = new GroundedEnricher({
   fallbackValue: "N/A", // required for API consistency; never actually returned in normal use (see note below)
-  // Also accepts identity/rules, plus the same config options as GroundedGenerator.
+  // Also accepts identity/rules/tone, plus the same config options as GroundedGenerator.
 });
 
 const result = await enricher.generate({
@@ -179,7 +183,7 @@ import { z } from "zod";
 const extractor = new GroundedExtractor({
   fields: { name: z.string(), email: z.string() },
   fallbackValue: { name: null, email: null }, // whole object, same shape as `fields`
-  // Optional: strict (default false) — see below. Also accepts identity/rules.
+  // Optional: strict (default false) — see below. Also accepts identity/rules/tone.
 });
 
 const result = await extractor.extract({
@@ -281,16 +285,19 @@ retornar (contexto insuficiente, nada extraível). Quando omitido:
 - `GroundedExtractor` sempre retorna a extração bruta do modelo (`null` nos campos não
   encontrados), ignorando `strict`, em vez de substituir por um objeto de fallback.
 
-Os três também aceitam, na construção, dois parâmetros opcionais para customizar o
+Os três também aceitam, na construção, três parâmetros opcionais para customizar o
 comportamento do modelo naquela chamada:
 
 - **`identity`** — o papel/objetivo do modelo naquela chamada (ex: "Você é o
   assistente de suporte da Acme Corp.").
-- **`rules`** — regras adicionais para restringir a chamada (ex: tom de voz, estilo).
+- **`rules`** — regras adicionais para restringir a chamada (ex: estilo, restrições
+  específicas do domínio).
+- **`tone`** — o tom/personalidade desejado para a resposta (ex: "seja empático,
+  gentil e natural" — útil em cenários de chatbot).
 
-Ambos são anexados como uma seção extra no mesmo system prompt, **sempre depois** das
-instruções internas de ancoragem/anti-alucinação — eles complementam persona e tom,
-mas nunca sobrescrevem as regras de grounding.
+Os três são anexados como seções extras no mesmo system prompt, na ordem `identity` →
+`rules` → `tone`, **sempre depois** das instruções internas de ancoragem/anti-alucinação
+— eles complementam persona e estilo, mas nunca sobrescrevem as regras de grounding.
 
 ### GroundedGenerator
 
@@ -306,7 +313,7 @@ const generator = new GroundedGenerator({
   // Opcional: fallbackValue (ver "Generators" acima para o que acontece quando
   // omitido), model (default "gpt-4o-mini"), apiKey (default OPENAI_API_KEY),
   // temperature (default 0), maxContextTokens, ou uma instância `client` já
-  // configurada do pacote `openai`. Também aceita identity/rules.
+  // configurada do pacote `openai`. Também aceita identity/rules/tone.
 });
 
 const result = await generator.generate({
@@ -347,7 +354,7 @@ import { GroundedEnricher } from "grounded-llm";
 
 const enricher = new GroundedEnricher({
   fallbackValue: "N/A", // exigido por consistência de API; nunca é retornado em uso normal (ver nota abaixo)
-  // Também aceita identity/rules, além das mesmas opções de configuração do GroundedGenerator.
+  // Também aceita identity/rules/tone, além das mesmas opções de configuração do GroundedGenerator.
 });
 
 const result = await enricher.generate({
@@ -383,7 +390,7 @@ import { z } from "zod";
 const extractor = new GroundedExtractor({
   fields: { name: z.string(), email: z.string() },
   fallbackValue: { name: null, email: null }, // objeto completo, mesmo formato de `fields`
-  // Opcional: strict (default false) — veja abaixo. Também aceita identity/rules.
+  // Opcional: strict (default false) — veja abaixo. Também aceita identity/rules/tone.
 });
 
 const result = await extractor.extract({

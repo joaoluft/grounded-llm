@@ -145,6 +145,30 @@ describe("GroundedExtractor - no extractable information (US2, FR-206)", () => {
   });
 });
 
+describe("GroundedExtractor - tone composition (004-behavioral-tone-field US2)", () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env["OPENAI_API_KEY"] = "test-key";
+  });
+
+  it("includes the developer's tone in the system message, after the built-in instructions", async () => {
+    mockParsedResponse({ name: "Ada Lovelace", email: "ada@example.com", reasoning: "both fields found" });
+
+    const extractor = new GroundedExtractor({
+      fields,
+      fallbackValue,
+      tone: "Seja empático e gentil.",
+    });
+    await extractor.extract({ message: "I'm Ada Lovelace, ada@example.com" });
+
+    const sentSystemMessage = parseMock.mock.calls[0][0].messages[0].content as string;
+    expect(sentSystemMessage).toContain("Seja empático e gentil.");
+    expect(sentSystemMessage.indexOf("You extract structured information")).toBeLessThan(
+      sentSystemMessage.indexOf("Seja empático e gentil.")
+    );
+  });
+});
+
 describe("GroundedExtractor - free-extraction mode when no fallbackValue is configured (003-optional-fallback US3)", () => {
   beforeEach(() => {
     parseMock.mockReset();

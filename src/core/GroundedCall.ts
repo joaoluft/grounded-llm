@@ -19,6 +19,7 @@ export abstract class GroundedCall<TFallback = string> {
   protected readonly maxContextTokens: number;
   protected readonly identity?: string;
   protected readonly rules?: string;
+  protected readonly tone?: string;
 
   constructor(config: GroundedCallConfig<TFallback>) {
     const isEmptyString = typeof config.fallbackValue === "string" && config.fallbackValue.trim().length === 0;
@@ -52,12 +53,13 @@ export abstract class GroundedCall<TFallback = string> {
     this.maxContextTokens = config.maxContextTokens ?? getMaxContextTokens(this.model);
     this.identity = config.identity;
     this.rules = config.rules;
+    this.tone = config.tone;
   }
 
   /**
-   * Appends the developer-supplied `identity`/`rules` (if provided) as additional
-   * sections after `basePrompt`, so they can never override the component's
-   * built-in grounding instructions.
+   * Appends the developer-supplied `identity`/`rules`/`tone` (if provided) as
+   * additional sections after `basePrompt`, in that order, so they can never
+   * override the component's built-in grounding instructions.
    */
   protected buildSystemPrompt(basePrompt: string): string {
     let prompt = basePrompt;
@@ -66,6 +68,9 @@ export abstract class GroundedCall<TFallback = string> {
     }
     if (this.rules) {
       prompt += `\n\nAdditional rules for this call (these do not override the grounding rules above):\n${this.rules}`;
+    }
+    if (this.tone && this.tone.trim().length > 0) {
+      prompt += `\n\nTone/personality for this call (this complements, but never overrides, the grounding rules above):\n${this.tone}`;
     }
     return prompt;
   }

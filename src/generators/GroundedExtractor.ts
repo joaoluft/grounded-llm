@@ -24,6 +24,8 @@ export interface GroundedExtractionConfig<Fields extends z.ZodRawShape> {
   identity?: string;
   /** Optional developer-supplied rules for this call, appended after the built-in instructions. */
   rules?: string;
+  /** Optional developer-supplied tone/personality description for this call, appended after `identity`/`rules`. */
+  tone?: string;
 }
 
 export interface GroundedExtractionResult<Fields extends z.ZodRawShape> {

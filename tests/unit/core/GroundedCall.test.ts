@@ -197,3 +197,44 @@ describe("GroundedCall system prompt composition (identity/rules)", () => {
     expect(identityIndex).toBeLessThan(rulesIndex);
   });
 });
+
+describe("GroundedCall system prompt composition (tone, 004-behavioral-tone-field)", () => {
+  beforeEach(() => {
+    process.env["OPENAI_API_KEY"] = "test-key";
+  });
+
+  it("appends the developer's tone after the base prompt when configured alone", () => {
+    const call = new TestableGroundedCall({
+      fallbackValue: "sorry",
+      tone: "Seja empático e gentil.",
+    });
+    const prompt = call.getSystemPrompt("BASE INSTRUCTIONS");
+    expect(prompt).toContain("Seja empático e gentil.");
+    expect(prompt.indexOf("BASE INSTRUCTIONS")).toBeLessThan(prompt.indexOf("Seja empático e gentil."));
+  });
+
+  it("ignores an empty/blank tone — prompt unchanged from base", () => {
+    const call = new TestableGroundedCall({
+      fallbackValue: "sorry",
+      tone: "   ",
+    });
+    expect(call.getSystemPrompt("BASE INSTRUCTIONS")).toBe("BASE INSTRUCTIONS");
+  });
+
+  it("composes identity, rules, and tone together in that order after the base prompt", () => {
+    const call = new TestableGroundedCall({
+      fallbackValue: "sorry",
+      identity: "You are the support assistant for Acme Corp.",
+      rules: "Always respond in a formal tone.",
+      tone: "Seja empático e gentil.",
+    });
+    const prompt = call.getSystemPrompt("BASE INSTRUCTIONS");
+    const baseIndex = prompt.indexOf("BASE INSTRUCTIONS");
+    const identityIndex = prompt.indexOf("You are the support assistant for Acme Corp.");
+    const rulesIndex = prompt.indexOf("Always respond in a formal tone.");
+    const toneIndex = prompt.indexOf("Seja empático e gentil.");
+    expect(baseIndex).toBeLessThan(identityIndex);
+    expect(identityIndex).toBeLessThan(rulesIndex);
+    expect(rulesIndex).toBeLessThan(toneIndex);
+  });
+});

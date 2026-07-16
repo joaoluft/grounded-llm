@@ -32,6 +32,13 @@ export interface GroundedCallConfig<TFallback = string> {
    * overrides them.
    */
   rules?: string;
+  /**
+   * Optional developer-supplied tone/personality description for this call (e.g.
+   * "seja empático e gentil"). Appended as an additional system-prompt section,
+   * always after `identity` and `rules` — it never overrides the component's
+   * built-in grounding instructions.
+   */
+  tone?: string;
 }
 
 export interface GroundedCallResult {
