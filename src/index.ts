@@ -19,3 +19,6 @@ export type {
   ExtractionRequest,
   ExtractionData,
 } from './generators/grounded-extractor.js';
+
+export { GroundedComposer } from './generators/grounded-composer.js';
+export type { ComposerRequest } from './generators/grounded-composer.js';

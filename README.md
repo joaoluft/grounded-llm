@@ -54,19 +54,24 @@ _why_ the model answered — or refused to — instead of trusting a black-box o
 
 ### Generators
 
-The library offers three components, each for a different context-grounded LLM call
-scenario:
+The library offers four components. Three are anchored in retrieved `context`, for
+different context-grounded LLM call scenarios; the fourth, `GroundedComposer`, is
+anchored in per-call `instructions` instead — for scenarios where the message content
+is already fully determined by rules, not by information to look up.
 
 | Component                                 | Use case                                                              | Method                                |
 | ----------------------------------------- | --------------------------------------------------------------------- | ------------------------------------- |
 | [`GroundedGenerator`](#groundedgenerator) | Generate the final answer to the user from retrieved context          | `.generate({ context, question })`    |
 | [`GroundedEnricher`](#groundedenricher)   | Enrich an existing base text with retrieved context                   | `.generate({ baseContent, context })` |
 | [`GroundedExtractor`](#groundedextractor) | Extract a structured object (fields you define) from the user message | `.extract({ message })`               |
+| [`GroundedComposer`](#groundedcomposer)   | Compose a message anchored in per-call instructions, with context as optional support | `.compose({ instructions, context })` |
 
-All three share the same principles: optional fallback at construction (see below),
-structured output via schema, `temperature` zero by default, and operational errors
-(`ModelUnavailableError`, `ContextTooLargeError`, `InvalidModelOutputError`) always
-distinct from a fallback result.
+The first three share the same principles: optional fallback at construction (see
+below), structured output via schema, `temperature` zero by default, and operational
+errors (`ModelUnavailableError`, `ContextTooLargeError`, `InvalidModelOutputError`)
+always distinct from a fallback result. `GroundedComposer` shares the structured
+output, `temperature`, and operational-error principles, but has no fallback concept
+at all — see its own section below.
 
 `fallbackValue` is optional. When configured, it's the canned value returned in place
 of the model's output whenever the component judges its own result unsafe to return
@@ -241,6 +246,48 @@ missing field triggers `fallbackValue` (whole object) instead of a partial resul
 no field can be safely extracted (or the message is empty), `fallbackValue` is
 returned regardless of `strict`.
 
+### GroundedComposer
+
+Composes a final message anchored primarily in `instructions` provided for that call
+— not in retrieved `context`. Useful for rule-driven flows where another part of your
+system has already decided exactly what needs to be said (e.g. the next question in a
+step-by-step data-collection flow); `GroundedComposer` just drafts that message
+following the instructions to the letter. `context` (e.g. a conversation summary plus
+data already collected) is optional and only ever used as support — to detect a
+conflict with the instructions, acknowledge progress, or reference data already
+mentioned — **never** as a sufficiency gate.
+
+```ts
+import { GroundedComposer } from 'grounded-llm';
+
+const composer = new GroundedComposer({
+  // Also accepts identity/rules/tone and langchainModel, plus the same config
+  // options as GroundedGenerator. `fallbackValue`, if passed, is accepted but
+  // ignored — this component never falls back (see below).
+});
+
+const result = await composer.compose({
+  instructions:
+    'Ask for the customer\'s service protocol, offering these options: 1159293, 1159292, or "start a new service".',
+  context: 'Customer already provided their name earlier in this conversation.',
+});
+
+console.log(result.usedFallback); // always false
+console.log(result.finalAnswer); // the composed question, following the instructions
+console.log(result.extractedFacts); // literal excerpts from `instructions` (+ `context`, when used)
+console.log(result.reasoning); // explanation connecting instructions (and context, if used) to the message
+```
+
+**This component never abstains or falls back**: unlike the other three generators,
+there is no concept of "insufficient input" here — `instructions` alone always fully
+determines the message, so `finalAnswer` is always produced and `usedFallback` is
+always `false`. `fallbackValue`, if configured, is silently ignored — it exists only
+because it's part of the shared `GroundedCallConfig` shape, not because
+`GroundedComposer` has any code path that reads it. An empty/blank `instructions` is
+treated as invalid usage and throws immediately, without calling the model; an
+empty/blank/absent `context` is not an error — the message is simply composed from
+`instructions` alone.
+
 ### Releasing
 
 CI (`.github/workflows/ci.yml`) runs type-check, tests, and build on every push/PR to
@@ -299,19 +346,25 @@ a responder — em vez de confiar em uma saída caixa-preta.
 
 ### Generators
 
-A lib oferece três componentes, cada um para um cenário diferente de chamada LLM
-ancorada em contexto:
+A lib oferece quatro componentes. Três são ancorados em `context` recuperado, para
+cenários diferentes de chamada LLM ancorada em contexto; o quarto, o
+`GroundedComposer`, é ancorado em `instructions` por chamada — para cenários em que o
+conteúdo da mensagem já é totalmente determinado por regras, não por informação a ser
+buscada.
 
 | Componente                                  | Uso                                                                              | Método                                |
 | ------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------- |
 | [`GroundedGenerator`](#groundedgenerator-1) | Gerar a resposta final ao usuário a partir de contexto recuperado                | `.generate({ context, question })`    |
 | [`GroundedEnricher`](#groundedenricher-1)   | Enriquecer um texto-base existente com contexto recuperado                       | `.generate({ baseContent, context })` |
 | [`GroundedExtractor`](#groundedextractor-1) | Extrair um objeto estruturado (campos definidos por você) da mensagem do usuário | `.extract({ message })`               |
+| [`GroundedComposer`](#groundedcomposer-1)   | Compor uma mensagem ancorada em instruções por chamada, com contexto como apoio opcional | `.compose({ instructions, context })` |
 
-Os três compartilham os mesmos princípios: fallback opcional na construção (veja
-abaixo), saída estruturada via schema, `temperature` zero por padrão, e erros
+Os três primeiros compartilham os mesmos princípios: fallback opcional na construção
+(veja abaixo), saída estruturada via schema, `temperature` zero por padrão, e erros
 operacionais (`ModelUnavailableError`, `ContextTooLargeError`, `InvalidModelOutputError`)
-sempre distintos de um resultado com fallback.
+sempre distintos de um resultado com fallback. O `GroundedComposer` compartilha os
+princípios de saída estruturada, `temperature` e erros operacionais, mas não tem
+nenhum conceito de fallback — veja sua própria seção abaixo.
 
 `fallbackValue` é opcional. Quando configurado, é o valor fixo retornado no lugar da
 saída do modelo sempre que o componente julga seu próprio resultado inseguro para
@@ -485,6 +538,48 @@ demais, sem acionar o `fallbackValue`. Com `strict: true`, qualquer campo ausent
 aciona o `fallbackValue` (objeto completo) em vez de um resultado parcial. Se
 nenhum campo puder ser extraído com segurança (ou a mensagem estiver vazia), o
 `fallbackValue` é retornado independentemente do modo `strict`.
+
+### GroundedComposer
+
+Compõe uma mensagem final ancorada primariamente em `instructions` fornecidas naquela
+chamada — não em `context` recuperado. Útil para fluxos orientados por regras onde
+outra parte do seu sistema já decidiu exatamente o que precisa ser dito (ex: a próxima
+pergunta de um fluxo de coleta de dados campo-a-campo); o `GroundedComposer` só redige
+essa mensagem seguindo as instruções ao pé da letra. O `context` (ex: um resumo da
+conversa mais os dados já coletados) é opcional e serve só como apoio — para detectar
+um conflito com as instruções, reconhecer progresso, ou referenciar um dado já
+mencionado — **nunca** como critério de suficiência.
+
+```ts
+import { GroundedComposer } from 'grounded-llm';
+
+const composer = new GroundedComposer({
+  // Também aceita identity/rules/tone e langchainModel, além das mesmas opções de
+  // configuração do GroundedGenerator. `fallbackValue`, se passado, é aceito mas
+  // ignorado — este componente nunca recorre a fallback (veja abaixo).
+});
+
+const result = await composer.compose({
+  instructions:
+    'Pergunte o protocolo de atendimento do cliente, apresentando estas opções: 1159293, 1159292, ou "novo atendimento".',
+  context: 'O cliente já informou o nome anteriormente nesta conversa.',
+});
+
+console.log(result.usedFallback); // sempre false
+console.log(result.finalAnswer); // a pergunta composta, seguindo as instruções
+console.log(result.extractedFacts); // trechos literais de `instructions` (+ `context`, quando usado)
+console.log(result.reasoning); // explicação conectando instructions (e context, se usado) à mensagem
+```
+
+**Este componente nunca se abstém nem recorre a fallback**: diferente dos outros três
+generators, não existe aqui o conceito de "entrada insuficiente" — `instructions`
+sozinha já determina totalmente a mensagem, então `finalAnswer` é sempre produzida e
+`usedFallback` é sempre `false`. O `fallbackValue`, se configurado, é silenciosamente
+ignorado — ele existe apenas porque faz parte do formato compartilhado de
+`GroundedCallConfig`, não porque o `GroundedComposer` tenha algum caminho de código que
+o leia. Um `instructions` vazio/em branco é tratado como uso inválido e lança uma
+exceção imediatamente, sem chamar o modelo; um `context` vazio/em branco/ausente não é
+erro — a mensagem é simplesmente composta a partir de `instructions` sozinha.
 
 ### Releases
 
