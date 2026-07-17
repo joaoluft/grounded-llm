@@ -23,6 +23,15 @@ const RESPONSE_FORMAT = {
   },
 };
 
+const RESPONSE_FORMAT_NON_STRICT = {
+  type: 'json_schema' as const,
+  json_schema: {
+    name: 'grounded_generation',
+    strict: false,
+    schema: { type: 'object', properties: { final_answer: { type: 'string' } } },
+  },
+};
+
 const PARAMS = {
   model: 'ignored-in-langchain-mode',
   temperature: 0,
@@ -34,7 +43,7 @@ const PARAMS = {
 };
 
 describe('LangChainModelClient (006-langchain-model-support, US1 happy path)', () => {
-  it('extracts json_schema.schema/.name from response_format and passes them to withStructuredOutput', async () => {
+  it('extracts json_schema.schema/.name/.strict from response_format and passes them to withStructuredOutput', async () => {
     const fake = makeFakeChatModel({ invoke: async () => ({ final_answer: 'ok' }) });
     const client = new LangChainModelClient(fake.model);
 
@@ -42,7 +51,23 @@ describe('LangChainModelClient (006-langchain-model-support, US1 happy path)', (
 
     expect(fake.withStructuredOutput).toHaveBeenCalledWith(RESPONSE_FORMAT.json_schema.schema, {
       name: RESPONSE_FORMAT.json_schema.name,
+      strict: RESPONSE_FORMAT.json_schema.strict,
     });
+  });
+
+  it('propagates strict: false as-is, instead of always forcing true', async () => {
+    const fake = makeFakeChatModel({ invoke: async () => ({ final_answer: 'ok' }) });
+    const client = new LangChainModelClient(fake.model);
+
+    await client.parse({ ...PARAMS, response_format: RESPONSE_FORMAT_NON_STRICT } as any);
+
+    expect(fake.withStructuredOutput).toHaveBeenCalledWith(
+      RESPONSE_FORMAT_NON_STRICT.json_schema.schema,
+      {
+        name: RESPONSE_FORMAT_NON_STRICT.json_schema.name,
+        strict: false,
+      }
+    );
   });
 
   it('converts messages into LangChain tuple format before invoking', async () => {

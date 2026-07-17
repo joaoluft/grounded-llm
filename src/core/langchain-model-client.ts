@@ -5,7 +5,7 @@ import { ModelUnavailableError, InvalidModelOutputError } from './errors.js';
 import type { ModelClient, ParsedModelOutput } from './model-client.js';
 
 interface JsonSchemaResponseFormat {
-  json_schema: { name: string; schema: Record<string, unknown> };
+  json_schema: { name: string; schema: Record<string, unknown>; strict?: boolean };
 }
 
 function toLangChainMessages(messages: ChatCompletionMessageParam[]): [string, string][] {
@@ -31,8 +31,15 @@ export class LangChainModelClient implements ModelClient {
 
     let parsed: unknown;
     try {
+      // `strict` must be forwarded, not just `schema`/`name`: without it, ChatOpenAI's
+      // `method: "jsonSchema"` (the default for gpt-4o-family models) sends OpenAI a
+      // `response_format.json_schema.strict` of `undefined`, which disables OpenAI's
+      // actual Structured Outputs enforcement — the model then treats the schema as a
+      // loose hint and can echo back the schema's own shape (e.g. `{ type, properties }`)
+      // instead of conforming to it, instead of a guaranteed-conforming object.
       const structuredModel = this.langchainModel.withStructuredOutput(json_schema.schema, {
         name: json_schema.name,
+        strict: json_schema.strict,
       });
       parsed = await structuredModel.invoke(messages);
     } catch (error) {
