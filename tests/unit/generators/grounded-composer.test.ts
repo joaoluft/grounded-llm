@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GroundedComposer } from '../../../src/generators/grounded-composer.js';
+import { InvalidModelOutputError } from '../../../src/core/errors.js';
 
 const parseMock = vi.fn();
 
@@ -112,6 +113,53 @@ describe('GroundedComposer - ignores any configured fallbackValue (US1)', () => 
     expect(result.usedFallback).toBe(false);
     expect(result.finalAnswer).toBe('composed message');
     expect(result.finalAnswer).not.toBe('SHOULD_NEVER_APPEAR');
+  });
+});
+
+describe('GroundedComposer - malformed model output (defense-in-depth for the langchainModel path)', () => {
+  it('throws InvalidModelOutputError, not a raw TypeError, when applied_rules is missing from the parsed output', async () => {
+    mockParsedResponse({
+      // applied_rules omitted entirely — mirrors a LangChain chat model whose
+      // structured-output implementation doesn't enforce required array fields.
+      context_used: false,
+      context_excerpts: [],
+      reasoning: 'r',
+      final_message: 'a',
+    });
+
+    const composer = new GroundedComposer({});
+    await expect(composer.compose({ instructions: 'rule' })).rejects.toBeInstanceOf(
+      InvalidModelOutputError
+    );
+  });
+
+  it('throws InvalidModelOutputError when applied_rules is null instead of an array', async () => {
+    mockParsedResponse({
+      applied_rules: null,
+      context_used: false,
+      context_excerpts: [],
+      reasoning: 'r',
+      final_message: 'a',
+    });
+
+    const composer = new GroundedComposer({});
+    await expect(composer.compose({ instructions: 'rule' })).rejects.toBeInstanceOf(
+      InvalidModelOutputError
+    );
+  });
+
+  it('throws InvalidModelOutputError when final_message is missing', async () => {
+    mockParsedResponse({
+      applied_rules: ['rule'],
+      context_used: false,
+      context_excerpts: [],
+      reasoning: 'r',
+    });
+
+    const composer = new GroundedComposer({});
+    await expect(composer.compose({ instructions: 'rule' })).rejects.toBeInstanceOf(
+      InvalidModelOutputError
+    );
   });
 });
 

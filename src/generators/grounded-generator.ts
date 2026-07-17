@@ -1,7 +1,8 @@
 import { zodResponseFormat } from 'openai/helpers/zod.mjs';
 import { GroundedCall } from '../core/grounded-call.js';
 import type { GroundedCallConfig, GroundedCallResult } from '../core/types.js';
-import { groundedGenerationSchema, type GroundedGenerationOutput } from './schema.js';
+import { InvalidModelOutputError } from '../core/errors.js';
+import { groundedGenerationSchema } from './schema.js';
 
 export interface GenerationRequest {
   context: string;
@@ -64,7 +65,7 @@ export class GroundedGenerator extends GroundedCall {
     const systemPrompt = this.buildSystemPrompt(buildSystemPromptBase(hasFallback));
     this.assertContextWithinLimit(systemPrompt + userPrompt);
 
-    const output = (await this.callModel({
+    const rawOutput = await this.callModel({
       model: this.model,
       temperature: this.temperature,
       response_format: zodResponseFormat(groundedGenerationSchema, 'grounded_generation'),
@@ -72,7 +73,19 @@ export class GroundedGenerator extends GroundedCall {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-    })) as GroundedGenerationOutput;
+    });
+
+    // The OpenAI backend enforces this shape server-side (`strict: true`), but the
+    // langchainModel backend only guarantees the response isn't null/undefined
+    // (LangChainModelClient) — some LangChain chat model integrations don't enforce
+    // required/array fields as strictly, so this validates defensively before use.
+    const parseResult = groundedGenerationSchema.safeParse(rawOutput);
+    if (!parseResult.success) {
+      throw new InvalidModelOutputError(
+        `GroundedGenerator: model response did not match the expected schema: ${parseResult.error.message}`
+      );
+    }
+    const output = parseResult.data;
 
     if ((!output.sufficient_context || output.extracted_facts.length === 0) && hasFallback) {
       return this.buildFallbackResult(output.reasoning, output.extracted_facts);

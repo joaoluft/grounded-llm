@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type OpenAI from 'openai';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { GroundedCall } from '../core/grounded-call.js';
+import { InvalidModelOutputError } from '../core/errors.js';
 import { buildExtractionSchema } from './grounded-extractor.schema.js';
 
 /** Maps a developer-provided fields shape to its extracted-value shape (each field nullable). */
@@ -90,7 +91,7 @@ export class GroundedExtractor<Fields extends z.ZodRawShape> extends GroundedCal
     const systemPrompt = this.buildSystemPrompt(SYSTEM_PROMPT_PREFIX);
     this.assertContextWithinLimit(systemPrompt + userPrompt);
 
-    const output = (await this.callModel({
+    const rawOutput = await this.callModel({
       model: this.model,
       temperature: this.temperature,
       response_format: this.responseFormat,
@@ -98,7 +99,19 @@ export class GroundedExtractor<Fields extends z.ZodRawShape> extends GroundedCal
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-    })) as z.infer<typeof this.schema>;
+    });
+
+    // The OpenAI backend enforces this shape server-side (`strict: true`), but the
+    // langchainModel backend only guarantees the response isn't null/undefined
+    // (LangChainModelClient) — some LangChain chat model integrations don't enforce
+    // required/nullable fields as strictly, so this validates defensively before use.
+    const parseResult = this.schema.safeParse(rawOutput);
+    if (!parseResult.success) {
+      throw new InvalidModelOutputError(
+        `GroundedExtractor: model response did not match the expected schema: ${parseResult.error.message}`
+      );
+    }
+    const output = parseResult.data;
 
     const { reasoning, ...extracted } = output as {
       reasoning: string;

@@ -1,10 +1,8 @@
 import { zodResponseFormat } from 'openai/helpers/zod.mjs';
 import { GroundedCall } from '../core/grounded-call.js';
 import type { GroundedCallConfig, GroundedCallResult } from '../core/types.js';
-import {
-  groundedCompositionSchema,
-  type GroundedCompositionOutput,
-} from './grounded-composer.schema.js';
+import { InvalidModelOutputError } from '../core/errors.js';
+import { groundedCompositionSchema } from './grounded-composer.schema.js';
 
 export interface ComposerRequest {
   instructions: string;
@@ -49,7 +47,7 @@ export class GroundedComposer extends GroundedCall {
     const systemPrompt = this.buildSystemPrompt(SYSTEM_PROMPT);
     this.assertContextWithinLimit(systemPrompt + userPrompt);
 
-    const output = (await this.callModel({
+    const rawOutput = await this.callModel({
       model: this.model,
       temperature: this.temperature,
       response_format: zodResponseFormat(groundedCompositionSchema, 'grounded_composition'),
@@ -57,7 +55,19 @@ export class GroundedComposer extends GroundedCall {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-    })) as GroundedCompositionOutput;
+    });
+
+    // The OpenAI backend enforces this shape server-side (`strict: true`), but the
+    // langchainModel backend only guarantees the response isn't null/undefined
+    // (LangChainModelClient) — some LangChain chat model integrations don't enforce
+    // required/array fields as strictly, so this validates defensively before use.
+    const parseResult = groundedCompositionSchema.safeParse(rawOutput);
+    if (!parseResult.success) {
+      throw new InvalidModelOutputError(
+        `GroundedComposer: model response did not match the expected schema: ${parseResult.error.message}`
+      );
+    }
+    const output = parseResult.data;
 
     return {
       finalAnswer: output.final_message,

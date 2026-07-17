@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GroundedGenerator } from '../../../src/generators/grounded-generator.js';
+import { InvalidModelOutputError } from '../../../src/core/errors.js';
 
 const parseMock = vi.fn();
 
@@ -318,5 +319,25 @@ describe('GroundedGenerator - invalid question (US1 edge case)', () => {
       /question/i
     );
     expect(parseMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('GroundedGenerator - malformed model output (defense-in-depth for the langchainModel path)', () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env['OPENAI_API_KEY'] = 'test-key';
+  });
+
+  it('throws InvalidModelOutputError, not a raw TypeError, when extracted_facts is missing', async () => {
+    mockParsedResponse({
+      sufficient_context: true,
+      reasoning: 'r',
+      final_answer: 'a',
+    });
+
+    const generator = new GroundedGenerator({ fallbackValue: "I don't know." });
+    await expect(
+      generator.generate({ context: 'some context', question: 'some question' })
+    ).rejects.toBeInstanceOf(InvalidModelOutputError);
   });
 });
