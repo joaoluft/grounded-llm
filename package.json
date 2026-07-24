@@ -45,6 +45,8 @@
     "prepublishOnly": "npm test && npm run build"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.36.0",
+    "@google/genai": "^2.13.0",
     "openai": "^4.68.0",
     "zod": "^3.23.8"
   },

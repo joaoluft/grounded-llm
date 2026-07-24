@@ -88,6 +88,12 @@ describe('GroundedCall construction', () => {
     const call = new TestableGroundedCall({ fallbackValue: 'sorry', client: injectedClient });
     expect(call.getClient()).toBe(injectedClient);
   });
+
+  it('selects openai as default provider when no provider is specified', () => {
+    process.env['OPENAI_API_KEY'] = 'test-key';
+    const call = new TestableGroundedCall({ fallbackValue: 'sorry' });
+    expect(call.getModel()).toBe('gpt-4o-mini');
+  });
 });
 
 describe('GroundedCall context-overflow, technical-failure, and invalid-output guards', () => {

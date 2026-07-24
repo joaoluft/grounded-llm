@@ -4,7 +4,9 @@ export {
   ModelUnavailableError,
   ContextTooLargeError,
   InvalidModelOutputError,
+  ProviderError,
 } from './core/errors.js';
+export type { ProviderErrorCategory } from './core/errors.js';
 
 export { GroundedGenerator } from './generators/grounded-generator.js';
 export type { GenerationRequest } from './generators/grounded-generator.js';
@@ -19,3 +21,5 @@ export type {
   ExtractionRequest,
   ExtractionData,
 } from './generators/grounded-extractor.js';
+
+export * from './providers/index.js';

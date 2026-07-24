@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import type OpenAI from 'openai';
 import { GroundedCall } from '../core/grounded-call.js';
 import { buildExtractionSchema } from './grounded-extractor.schema.js';
 
@@ -8,24 +7,17 @@ export type ExtractionData<Fields extends z.ZodRawShape> = {
   [K in keyof Fields]: z.infer<Fields[K]> | null;
 };
 
-export interface GroundedExtractionConfig<Fields extends z.ZodRawShape> {
+import type { GroundedCallConfig } from '../core/types.js';
+
+export interface GroundedExtractionConfig<Fields extends z.ZodRawShape> extends GroundedCallConfig<
+  ExtractionData<Fields>
+> {
   /** Developer-defined fields to extract from the user message (FR-201). */
   fields: Fields;
   /** Optional whole-object fallback, same shape as `fields` (FR-205). When omitted, `extract()` always returns the model's raw (nullable) extraction instead (003-optional-fallback FR-009). */
   fallbackValue?: ExtractionData<Fields>;
   /** Default `false`. Whether partial extraction is accepted (FR-211). */
   strict?: boolean;
-  client?: OpenAI;
-  apiKey?: string;
-  model?: string;
-  temperature?: number;
-  maxContextTokens?: number;
-  /** Optional developer-supplied role/objective for this call, appended after the built-in instructions. */
-  identity?: string;
-  /** Optional developer-supplied rules for this call, appended after the built-in instructions. */
-  rules?: string;
-  /** Optional developer-supplied tone/personality description for this call, appended after `identity`/`rules`. */
-  tone?: string;
 }
 
 export interface GroundedExtractionResult<Fields extends z.ZodRawShape> {

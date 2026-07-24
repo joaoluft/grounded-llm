@@ -1,21 +1,14 @@
 import OpenAI from 'openai';
-import { LengthFinishReasonError, ContentFilterFinishReasonError } from 'openai/error.mjs';
-import type {
-  ChatCompletionParseParams,
-  ParsedChatCompletion,
-} from 'openai/resources/beta/chat/completions.mjs';
 import type { GroundedCallConfig } from './types.js';
 import { ModelUnavailableError, ContextTooLargeError, InvalidModelOutputError } from './errors.js';
 import { estimateTokens, getMaxContextTokens } from './context-window.js';
+import type { LLMProviderContract, ProviderRequest, ProviderResponse } from '../providers/types.js';
+import { providerRegistry } from '../providers/registry.js';
+import { resolveProviderId } from '../providers/config.js';
 
-/**
- * Shared base for components that call an OpenAI chat model with structured output,
- * a mandatory fallback, and a distinct operational-error surface (FR-005, FR-008,
- * FR-010, FR-011, FR-012). Reusable by a future `GroundedDecider` — keep this file
- * free of `GroundedGenerator`-specific behavior.
- */
 export abstract class GroundedCall<TFallback = string> {
-  protected readonly client: OpenAI;
+  protected readonly providerId: string;
+  protected readonly providerAdapter: LLMProviderContract;
   protected readonly model: string;
   protected readonly fallbackValue?: TFallback;
   protected readonly temperature: number;
@@ -32,25 +25,27 @@ export abstract class GroundedCall<TFallback = string> {
     }
     this.fallbackValue = config.fallbackValue;
 
-    if (config.client) {
-      this.client = config.client;
-      if (config.model !== undefined && config.model.trim().length === 0) {
-        throw new Error('GroundedCall: `model` must not be an empty string.');
-      }
-      this.model = config.model ?? 'gpt-4o-mini';
-    } else {
-      if (config.model !== undefined && config.model.trim().length === 0) {
-        throw new Error('GroundedCall: `model` must not be an empty string.');
-      }
-      this.model = config.model ?? 'gpt-4o-mini';
+    if (config.model !== undefined && config.model.trim().length === 0) {
+      throw new Error('GroundedCall: `model` must not be an empty string.');
+    }
 
-      const apiKey = config.apiKey ?? process.env['OPENAI_API_KEY'];
-      if (!apiKey || apiKey.trim().length === 0) {
-        throw new Error(
-          'GroundedCall: no `apiKey` provided and OPENAI_API_KEY is not set in the environment.'
-        );
-      }
-      this.client = new OpenAI({ apiKey });
+    this.providerId = resolveProviderId(config.provider);
+    this.providerAdapter =
+      config.providerAdapter ??
+      providerRegistry.getProvider(this.providerId, {
+        client: config.client,
+        apiKey: config.apiKey,
+        ...config.providerOptions,
+      });
+
+    if (config.model) {
+      this.model = config.model;
+    } else if (this.providerId === 'anthropic') {
+      this.model = 'claude-3-5-haiku-latest';
+    } else if (this.providerId === 'google') {
+      this.model = 'gemini-1.5-flash';
+    } else {
+      this.model = 'gpt-4o-mini';
     }
 
     this.temperature = config.temperature ?? 0;
@@ -60,10 +55,17 @@ export abstract class GroundedCall<TFallback = string> {
     this.tone = config.tone;
   }
 
+  /** Backward-compatible client getter for code/tests that inspect `this.client`. */
+  protected get client(): OpenAI {
+    if ('client' in (this.providerAdapter as any) && (this.providerAdapter as any).client) {
+      return (this.providerAdapter as any).client;
+    }
+    const apiKey = process.env.OPENAI_API_KEY || 'dummy';
+    return new OpenAI({ apiKey });
+  }
+
   /**
-   * Appends the developer-supplied `identity`/`rules`/`tone` (if provided) as
-   * additional sections after `basePrompt`, in that order, so they can never
-   * override the component's built-in grounding instructions.
+   * Appends developer-supplied `identity`/`rules`/`tone` as additional sections.
    */
   protected buildSystemPrompt(basePrompt: string): string {
     let prompt = basePrompt;
@@ -91,40 +93,48 @@ export abstract class GroundedCall<TFallback = string> {
   }
 
   /**
-   * Calls the model with structured-output parsing, translating failures into the
-   * distinct operational-error types (FR-010, FR-012). Never retries automatically.
+   * Dispatches model calls through the resolved provider adapter.
    */
-  protected async callModel<Params extends ChatCompletionParseParams>(
-    params: Params
-  ): Promise<NonNullable<ParsedChatCompletion<unknown>['choices'][number]['message']['parsed']>> {
-    let completion: ParsedChatCompletion<unknown>;
+  protected async callModel<Params extends Record<string, any>>(params: Params): Promise<any> {
+    const messages = (params.messages as Array<{ role: string; content: string }>) || [];
+    const systemMsg = messages.find((m) => m.role === 'system')?.content;
+    const userMsg = messages.find((m) => m.role === 'user')?.content || '';
+
+    const req: ProviderRequest = {
+      operation: 'completeStructured',
+      model: params.model || this.model,
+      temperature: params.temperature ?? this.temperature,
+      systemInstruction: systemMsg,
+      prompt: userMsg,
+      schema: params.response_format,
+    };
+
     try {
-      completion = await this.client.beta.chat.completions.parse(params);
+      const response: ProviderResponse<any> = await this.providerAdapter.completeStructured(req);
+      return response.data;
     } catch (error) {
       if (
-        error instanceof LengthFinishReasonError ||
-        error instanceof ContentFilterFinishReasonError
+        error instanceof InvalidModelOutputError ||
+        error instanceof ContextTooLargeError ||
+        error instanceof ModelUnavailableError
       ) {
-        throw new InvalidModelOutputError(
-          `Model response failed structured output validation: ${error.message}`,
-          { cause: error }
-        );
+        throw error;
+      }
+      if (error && typeof error === 'object' && 'name' in error) {
+        if (
+          error.name === 'LengthFinishReasonError' ||
+          error.name === 'ContentFilterFinishReasonError'
+        ) {
+          throw new InvalidModelOutputError(
+            `Model response failed structured output validation: ${(error as Error).message}`,
+            { cause: error }
+          );
+        }
       }
       throw new ModelUnavailableError(
-        `Call to the OpenAI model failed: ${error instanceof Error ? error.message : String(error)}`,
+        `Call to the model failed: ${error instanceof Error ? error.message : String(error)}`,
         { cause: error }
       );
     }
-
-    const message = completion.choices[0]?.message;
-    if (message?.refusal) {
-      throw new InvalidModelOutputError(`Model refused to respond: ${message.refusal}`);
-    }
-    if (!message || message.parsed === null || message.parsed === undefined) {
-      throw new InvalidModelOutputError(
-        'Model response could not be parsed against the expected schema.'
-      );
-    }
-    return message.parsed;
   }
 }

@@ -1,4 +1,5 @@
 import type OpenAI from 'openai';
+import type { LLMProviderContract } from '../providers/types.js';
 
 /**
  * Generic over the fallback shape so components with a non-string fallback (e.g.
@@ -10,7 +11,13 @@ export interface GroundedCallConfig<TFallback = string> {
   client?: OpenAI;
   /** Used only when `client` is not provided. Defaults to `OPENAI_API_KEY`. */
   apiKey?: string;
-  /** Used only when `client` is not provided. Defaults to `"gpt-4o-mini"`. */
+  /** Optional provider name ('openai', 'anthropic', 'google'). Resolved via precedence (param > env > default). */
+  provider?: string;
+  /** Optional provider-specific non-secret configuration options. */
+  providerOptions?: Record<string, any>;
+  /** Optional direct custom provider adapter instance. */
+  providerAdapter?: LLMProviderContract;
+  /** Model selection name. Defaults to provider default (e.g. "gpt-4o-mini" for OpenAI). */
   model?: string;
   /** Optional. When omitted, the component must produce a real result instead of a canned fallback (003-optional-fallback FR-001). */
   fallbackValue?: TFallback;
