@@ -1,9 +1,9 @@
 {
-  "ai": "claude",
+  "ai": "agy",
   "ai_skills": true,
   "feature_numbering": "sequential",
-  "here": false,
-  "integration": "claude",
-  "script": "sh",
-  "speckit_version": "0.12.17.dev0"
+  "here": true,
+  "integration": "agy",
+  "script": "ps",
+  "speckit_version": "0.12.9"
 }

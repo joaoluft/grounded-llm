@@ -21,3 +21,29 @@ export class InvalidModelOutputError extends Error {
     this.name = 'InvalidModelOutputError';
   }
 }
+
+export type ProviderErrorCategory =
+  'selection' | 'auth' | 'unavailable' | 'output-invalid' | 'unsupported-capability';
+
+/** Normalized library-level error for provider selection and execution failures. */
+export class ProviderError extends Error {
+  readonly category: ProviderErrorCategory;
+  readonly providerId?: string;
+  readonly remediationHint?: string;
+
+  constructor(
+    message: string,
+    options: {
+      category: ProviderErrorCategory;
+      providerId?: string;
+      remediationHint?: string;
+      cause?: unknown;
+    }
+  ) {
+    super(message, { cause: options.cause });
+    this.name = 'ProviderError';
+    this.category = options.category;
+    this.providerId = options.providerId;
+    this.remediationHint = options.remediationHint;
+  }
+}
