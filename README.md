@@ -104,19 +104,24 @@ _why_ the model answered — or refused to — instead of trusting a black-box o
 
 ### Generators
 
-The library offers three components, each for a different context-grounded LLM call
-scenario:
+The library offers four components. Three are anchored in retrieved `context`, for
+different context-grounded LLM call scenarios; the fourth, `GroundedComposer`, is
+anchored in per-call `instructions` instead — for scenarios where the message content
+is already fully determined by rules, not by information to look up.
 
 | Component                                 | Use case                                                              | Method                                |
 | ----------------------------------------- | --------------------------------------------------------------------- | ------------------------------------- |
 | [`GroundedGenerator`](#groundedgenerator) | Generate the final answer to the user from retrieved context          | `.generate({ context, question })`    |
 | [`GroundedEnricher`](#groundedenricher)   | Enrich an existing base text with retrieved context                   | `.generate({ baseContent, context })` |
 | [`GroundedExtractor`](#groundedextractor) | Extract a structured object (fields you define) from the user message | `.extract({ message })`               |
+| [`GroundedComposer`](#groundedcomposer)   | Compose a message anchored in per-call instructions, with context as optional support | `.compose({ instructions, context })` |
 
-All three share the same principles: optional fallback at construction (see below),
-structured output via schema, `temperature` zero by default, and operational errors
-(`ModelUnavailableError`, `ContextTooLargeError`, `InvalidModelOutputError`) always
-distinct from a fallback result.
+The first three share the same principles: optional fallback at construction (see
+below), structured output via schema, `temperature` zero by default, and operational
+errors (`ModelUnavailableError`, `ContextTooLargeError`, `InvalidModelOutputError`)
+always distinct from a fallback result. `GroundedComposer` shares the structured
+output, `temperature`, and operational-error principles, but has no fallback concept
+at all — see its own section below.
 
 `fallbackValue` is optional. When configured, it's the canned value returned in place
 of the model's output whenever the component judges its own result unsafe to return
@@ -145,6 +150,40 @@ All three are appended as extra sections in the same system prompt, in the order
 grounding/anti-hallucination instructions — they complement persona and style, but
 never override the grounding rules.
 
+#### Using a LangChain model (LangSmith tracing)
+
+By default, every component talks to the OpenAI API directly (standalone mode) — no
+LangChain dependency required. If your application already runs on LangChain and you
+want these calls to show up in your LangSmith traces alongside the rest of your
+pipeline, pass an already-configured LangChain chat model via `langchainModel`
+instead of `client`/`apiKey`/`model`/`temperature`:
+
+```ts
+import { ChatOpenAI } from '@langchain/openai';
+import { GroundedGenerator } from 'grounded-llm';
+
+const langchainModel = new ChatOpenAI({ model: 'gpt-4o-mini', temperature: 0 });
+
+const generator = new GroundedGenerator({
+  langchainModel,
+  fallbackValue: "Sorry, I don't have enough information to answer that.",
+});
+```
+
+- `langchainModel` is **mutually exclusive** with `client`, `apiKey`, `model`, and
+  `temperature` — the chat model already carries its own credentials, model id, and
+  temperature, so combining it with any of those throws a configuration error at
+  construction.
+- `maxContextTokens` still applies; when omitted in this mode, a conservative default
+  of 128 000 tokens is used (there's no OpenAI `model` id to derive a known limit
+  from).
+- `identity`/`rules`/`tone`/`fallbackValue`, the result shape, and the operational
+  error types (`ModelUnavailableError`/`ContextTooLargeError`/`InvalidModelOutputError`)
+  all behave identically whether you use `client`/`apiKey` or `langchainModel`.
+- `@langchain/core` is an **optional peer dependency** — install it (and whichever
+  LangChain chat model integration you use, e.g. `@langchain/openai`) only if you use
+  `langchainModel`. Standalone consumers never need it.
+
 ### GroundedGenerator
 
 Generates a final answer strictly grounded in retrieved context, or falls back to a
@@ -159,7 +198,8 @@ const generator = new GroundedGenerator({
   // Optional: fallbackValue (see "Generators" above for what happens when it's
   // omitted), model (default "gpt-4o-mini"), apiKey (default OPENAI_API_KEY),
   // temperature (default 0), maxContextTokens, or an already-configured `client`
-  // instance from the `openai` package. Also accepts identity/rules/tone.
+  // instance from the `openai` package (or `langchainModel` instead — see above).
+  // Also accepts identity/rules/tone.
 });
 
 const result = await generator.generate({
@@ -173,9 +213,11 @@ console.log(result.extractedFacts); // ["Paris is the capital of France."]
 console.log(result.reasoning); // explanation connecting facts to the answer
 ```
 
-`GroundedGenerator` is standalone — it depends only on the official `openai` client, so
-it can be plugged into any pipeline (LangGraph, a manual chain, or a direct call) without
-requiring any third-party types.
+`GroundedGenerator` is standalone by default — it depends only on the official `openai`
+client, so it can be plugged into any pipeline (LangGraph, a manual chain, or a direct
+call) without requiring any third-party types. See ["Using a LangChain
+model"](#using-a-langchain-model-langsmith-tracing) above if you'd rather route calls
+through an existing LangChain chat model.
 
 #### Error handling
 
@@ -200,7 +242,7 @@ import { GroundedEnricher } from 'grounded-llm';
 
 const enricher = new GroundedEnricher({
   fallbackValue: 'N/A', // required for API consistency; never actually returned in normal use (see note below)
-  // Also accepts identity/rules/tone, plus the same config options as GroundedGenerator.
+  // Also accepts identity/rules/tone and langchainModel, plus the same config options as GroundedGenerator.
 });
 
 const result = await enricher.generate({
@@ -235,7 +277,7 @@ import { z } from 'zod';
 const extractor = new GroundedExtractor({
   fields: { name: z.string(), email: z.string() },
   fallbackValue: { name: null, email: null }, // whole object, same shape as `fields`
-  // Optional: strict (default false) — see below. Also accepts identity/rules/tone.
+  // Optional: strict (default false) — see below. Also accepts identity/rules/tone and langchainModel.
 });
 
 const result = await extractor.extract({
@@ -253,6 +295,48 @@ fields, the default behavior (`strict: false`) returns the extracted fields with
 missing field triggers `fallbackValue` (whole object) instead of a partial result. If
 no field can be safely extracted (or the message is empty), `fallbackValue` is
 returned regardless of `strict`.
+
+### GroundedComposer
+
+Composes a final message anchored primarily in `instructions` provided for that call
+— not in retrieved `context`. Useful for rule-driven flows where another part of your
+system has already decided exactly what needs to be said (e.g. the next question in a
+step-by-step data-collection flow); `GroundedComposer` just drafts that message
+following the instructions to the letter. `context` (e.g. a conversation summary plus
+data already collected) is optional and only ever used as support — to detect a
+conflict with the instructions, acknowledge progress, or reference data already
+mentioned — **never** as a sufficiency gate.
+
+```ts
+import { GroundedComposer } from 'grounded-llm';
+
+const composer = new GroundedComposer({
+  // Also accepts identity/rules/tone and langchainModel, plus the same config
+  // options as GroundedGenerator. `fallbackValue`, if passed, is accepted but
+  // ignored — this component never falls back (see below).
+});
+
+const result = await composer.compose({
+  instructions:
+    'Ask for the customer\'s service protocol, offering these options: 1159293, 1159292, or "start a new service".',
+  context: 'Customer already provided their name earlier in this conversation.',
+});
+
+console.log(result.usedFallback); // always false
+console.log(result.finalAnswer); // the composed question, following the instructions
+console.log(result.extractedFacts); // literal excerpts from `instructions` (+ `context`, when used)
+console.log(result.reasoning); // explanation connecting instructions (and context, if used) to the message
+```
+
+**This component never abstains or falls back**: unlike the other three generators,
+there is no concept of "insufficient input" here — `instructions` alone always fully
+determines the message, so `finalAnswer` is always produced and `usedFallback` is
+always `false`. `fallbackValue`, if configured, is silently ignored — it exists only
+because it's part of the shared `GroundedCallConfig` shape, not because
+`GroundedComposer` has any code path that reads it. An empty/blank `instructions` is
+treated as invalid usage and throws immediately, without calling the model; an
+empty/blank/absent `context` is not an error — the message is simply composed from
+`instructions` alone.
 
 ### Releasing
 
@@ -277,9 +361,11 @@ Biblioteca TypeScript para reduzir alucinação em respostas geradas por LLM, fo
 extração literal de fatos e uma checagem explícita de suficiência de contexto antes de
 gerar a resposta final.
 
-> **Nesta versão, o suporte é exclusivo à OpenAI.** O componente usa o client oficial
-> `openai` internamente (injetado por você ou criado a partir de uma `apiKey`); não há
-> suporte a outros provedores de modelo nesta release.
+> **Nesta versão, o alvo é a API da OpenAI.** Por padrão, cada componente usa o client
+> oficial `openai` internamente (injetado por você ou criado a partir de uma
+> `apiKey`). Opcionalmente, você pode em vez disso passar um chat model LangChain já
+> configurado via `langchainModel` — veja ["Usando um modelo
+> LangChain"](#usando-um-modelo-langchain-tracing-do-langsmith) abaixo.
 
 ### Como o combate à alucinação funciona: chain-of-thought ancorado em contexto
 
@@ -310,19 +396,25 @@ a responder — em vez de confiar em uma saída caixa-preta.
 
 ### Generators
 
-A lib oferece três componentes, cada um para um cenário diferente de chamada LLM
-ancorada em contexto:
+A lib oferece quatro componentes. Três são ancorados em `context` recuperado, para
+cenários diferentes de chamada LLM ancorada em contexto; o quarto, o
+`GroundedComposer`, é ancorado em `instructions` por chamada — para cenários em que o
+conteúdo da mensagem já é totalmente determinado por regras, não por informação a ser
+buscada.
 
 | Componente                                  | Uso                                                                              | Método                                |
 | ------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------- |
 | [`GroundedGenerator`](#groundedgenerator-1) | Gerar a resposta final ao usuário a partir de contexto recuperado                | `.generate({ context, question })`    |
 | [`GroundedEnricher`](#groundedenricher-1)   | Enriquecer um texto-base existente com contexto recuperado                       | `.generate({ baseContent, context })` |
 | [`GroundedExtractor`](#groundedextractor-1) | Extrair um objeto estruturado (campos definidos por você) da mensagem do usuário | `.extract({ message })`               |
+| [`GroundedComposer`](#groundedcomposer-1)   | Compor uma mensagem ancorada em instruções por chamada, com contexto como apoio opcional | `.compose({ instructions, context })` |
 
-Os três compartilham os mesmos princípios: fallback opcional na construção (veja
-abaixo), saída estruturada via schema, `temperature` zero por padrão, e erros
+Os três primeiros compartilham os mesmos princípios: fallback opcional na construção
+(veja abaixo), saída estruturada via schema, `temperature` zero por padrão, e erros
 operacionais (`ModelUnavailableError`, `ContextTooLargeError`, `InvalidModelOutputError`)
-sempre distintos de um resultado com fallback.
+sempre distintos de um resultado com fallback. O `GroundedComposer` compartilha os
+princípios de saída estruturada, `temperature` e erros operacionais, mas não tem
+nenhum conceito de fallback — veja sua própria seção abaixo.
 
 `fallbackValue` é opcional. Quando configurado, é o valor fixo retornado no lugar da
 saída do modelo sempre que o componente julga seu próprio resultado inseguro para
@@ -351,6 +443,41 @@ Os três são anexados como seções extras no mesmo system prompt, na ordem `id
 `rules` → `tone`, **sempre depois** das instruções internas de ancoragem/anti-alucinação
 — eles complementam persona e estilo, mas nunca sobrescrevem as regras de grounding.
 
+#### Usando um modelo LangChain (tracing do LangSmith)
+
+Por padrão, todos os componentes falam diretamente com a API da OpenAI (modo
+standalone) — sem exigir nenhuma dependência do LangChain. Se sua aplicação já roda
+sobre LangChain e você quer que essas chamadas apareçam nos seus traces do LangSmith
+junto com o restante do seu pipeline, passe um chat model LangChain já configurado via
+`langchainModel`, em vez de `client`/`apiKey`/`model`/`temperature`:
+
+```ts
+import { ChatOpenAI } from '@langchain/openai';
+import { GroundedGenerator } from 'grounded-llm';
+
+const langchainModel = new ChatOpenAI({ model: 'gpt-4o-mini', temperature: 0 });
+
+const generator = new GroundedGenerator({
+  langchainModel,
+  fallbackValue: 'Desculpe, não tenho informação suficiente para responder isso.',
+});
+```
+
+- `langchainModel` é **mutuamente exclusivo** com `client`, `apiKey`, `model` e
+  `temperature` — o chat model já traz suas próprias credenciais, model id e
+  temperatura, então combiná-lo com qualquer um desses campos lança um erro de
+  configuração na construção.
+- `maxContextTokens` continua valendo; quando omitido nesse modo, um limite
+  conservador padrão de 128.000 tokens é usado (não há um `model` id da OpenAI do
+  qual derivar um limite conhecido).
+- `identity`/`rules`/`tone`/`fallbackValue`, o formato do resultado, e os tipos de
+  erro operacionais (`ModelUnavailableError`/`ContextTooLargeError`/
+  `InvalidModelOutputError`) se comportam de forma idêntica, seja usando
+  `client`/`apiKey` ou `langchainModel`.
+- `@langchain/core` é uma **peerDependency opcional** — instale-a (e a integração de
+  chat model LangChain que você usar, ex: `@langchain/openai`) apenas se for usar
+  `langchainModel`. Consumidores do modo standalone nunca precisam dela.
+
 ### GroundedGenerator
 
 Gera uma resposta final estritamente ancorada no contexto recuperado, ou recorre a um
@@ -365,7 +492,8 @@ const generator = new GroundedGenerator({
   // Opcional: fallbackValue (ver "Generators" acima para o que acontece quando
   // omitido), model (default "gpt-4o-mini"), apiKey (default OPENAI_API_KEY),
   // temperature (default 0), maxContextTokens, ou uma instância `client` já
-  // configurada do pacote `openai`. Também aceita identity/rules/tone.
+  // configurada do pacote `openai` (ou `langchainModel` em vez disso — veja acima).
+  // Também aceita identity/rules/tone.
 });
 
 const result = await generator.generate({
@@ -406,7 +534,7 @@ import { GroundedEnricher } from 'grounded-llm';
 
 const enricher = new GroundedEnricher({
   fallbackValue: 'N/A', // exigido por consistência de API; nunca é retornado em uso normal (ver nota abaixo)
-  // Também aceita identity/rules/tone, além das mesmas opções de configuração do GroundedGenerator.
+  // Também aceita identity/rules/tone e langchainModel, além das mesmas opções de configuração do GroundedGenerator.
 });
 
 const result = await enricher.generate({
@@ -442,7 +570,7 @@ import { z } from 'zod';
 const extractor = new GroundedExtractor({
   fields: { name: z.string(), email: z.string() },
   fallbackValue: { name: null, email: null }, // objeto completo, mesmo formato de `fields`
-  // Opcional: strict (default false) — veja abaixo. Também aceita identity/rules/tone.
+  // Opcional: strict (default false) — veja abaixo. Também aceita identity/rules/tone e langchainModel.
 });
 
 const result = await extractor.extract({
@@ -460,6 +588,48 @@ demais, sem acionar o `fallbackValue`. Com `strict: true`, qualquer campo ausent
 aciona o `fallbackValue` (objeto completo) em vez de um resultado parcial. Se
 nenhum campo puder ser extraído com segurança (ou a mensagem estiver vazia), o
 `fallbackValue` é retornado independentemente do modo `strict`.
+
+### GroundedComposer
+
+Compõe uma mensagem final ancorada primariamente em `instructions` fornecidas naquela
+chamada — não em `context` recuperado. Útil para fluxos orientados por regras onde
+outra parte do seu sistema já decidiu exatamente o que precisa ser dito (ex: a próxima
+pergunta de um fluxo de coleta de dados campo-a-campo); o `GroundedComposer` só redige
+essa mensagem seguindo as instruções ao pé da letra. O `context` (ex: um resumo da
+conversa mais os dados já coletados) é opcional e serve só como apoio — para detectar
+um conflito com as instruções, reconhecer progresso, ou referenciar um dado já
+mencionado — **nunca** como critério de suficiência.
+
+```ts
+import { GroundedComposer } from 'grounded-llm';
+
+const composer = new GroundedComposer({
+  // Também aceita identity/rules/tone e langchainModel, além das mesmas opções de
+  // configuração do GroundedGenerator. `fallbackValue`, se passado, é aceito mas
+  // ignorado — este componente nunca recorre a fallback (veja abaixo).
+});
+
+const result = await composer.compose({
+  instructions:
+    'Pergunte o protocolo de atendimento do cliente, apresentando estas opções: 1159293, 1159292, ou "novo atendimento".',
+  context: 'O cliente já informou o nome anteriormente nesta conversa.',
+});
+
+console.log(result.usedFallback); // sempre false
+console.log(result.finalAnswer); // a pergunta composta, seguindo as instruções
+console.log(result.extractedFacts); // trechos literais de `instructions` (+ `context`, quando usado)
+console.log(result.reasoning); // explicação conectando instructions (e context, se usado) à mensagem
+```
+
+**Este componente nunca se abstém nem recorre a fallback**: diferente dos outros três
+generators, não existe aqui o conceito de "entrada insuficiente" — `instructions`
+sozinha já determina totalmente a mensagem, então `finalAnswer` é sempre produzida e
+`usedFallback` é sempre `false`. O `fallbackValue`, se configurado, é silenciosamente
+ignorado — ele existe apenas porque faz parte do formato compartilhado de
+`GroundedCallConfig`, não porque o `GroundedComposer` tenha algum caminho de código que
+o leia. Um `instructions` vazio/em branco é tratado como uso inválido e lança uma
+exceção imediatamente, sem chamar o modelo; um `context` vazio/em branco/ausente não é
+erro — a mensagem é simplesmente composta a partir de `instructions` sozinha.
 
 ### Releases
 

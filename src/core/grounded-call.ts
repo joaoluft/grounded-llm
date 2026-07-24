@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import type { GroundedCallConfig } from './types.js';
-import { ModelUnavailableError, ContextTooLargeError, InvalidModelOutputError } from './errors.js';
+import { ContextTooLargeError } from './errors.js';
 import { estimateTokens, getMaxContextTokens } from './context-window.js';
 import type { LLMProviderContract, ProviderRequest, ProviderResponse } from '../providers/types.js';
 import { providerRegistry } from '../providers/registry.js';
@@ -49,7 +49,6 @@ export abstract class GroundedCall<TFallback = string> {
     }
 
     this.temperature = config.temperature ?? 0;
-    this.maxContextTokens = config.maxContextTokens ?? getMaxContextTokens(this.model);
     this.identity = config.identity;
     this.rules = config.rules;
     this.tone = config.tone;

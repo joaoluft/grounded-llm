@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { z } from 'zod';
 import { GroundedExtractor } from '../../../src/generators/grounded-extractor.js';
+import { InvalidModelOutputError } from '../../../src/core/errors.js';
 
 const parseMock = vi.fn();
 
@@ -23,6 +24,24 @@ const fields = {
   email: z.string(),
 };
 const fallbackValue = { name: null, email: null };
+
+describe('GroundedExtractor langchainModel dispatch (006-langchain-model-support, US1)', () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+  });
+
+  it('routes the call through a fake LangChain chat model instead of an OpenAI client', async () => {
+    const invoke = vi.fn(async () => ({ name: 'Ada', email: null, reasoning: 'partial' }));
+    const fakeModel = { withStructuredOutput: vi.fn(() => ({ invoke })) } as any;
+
+    const extractor = new GroundedExtractor({ fields, langchainModel: fakeModel });
+    const result = await extractor.extract({ message: 'My name is Ada' });
+
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(parseMock).not.toHaveBeenCalled();
+    expect(result.data).toEqual({ name: 'Ada', email: null });
+  });
+});
 
 describe('GroundedExtractor - construction/config validation (US2)', () => {
   beforeEach(() => {
@@ -220,5 +239,30 @@ describe('GroundedExtractor - free-extraction mode when no fallbackValue is conf
     expect(result.usedFallback).toBe(false);
     expect(result.data).toEqual({ name: null, email: null });
     expect(parseMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('GroundedExtractor - malformed model output (defense-in-depth for the langchainModel path)', () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env['OPENAI_API_KEY'] = 'test-key';
+  });
+
+  it('throws InvalidModelOutputError, not silently-wrong data, when reasoning is missing', async () => {
+    mockParsedResponse({ name: 'Ada Lovelace', email: null });
+
+    const extractor = new GroundedExtractor({ fields, fallbackValue });
+    await expect(extractor.extract({ message: "I'm Ada Lovelace" })).rejects.toBeInstanceOf(
+      InvalidModelOutputError
+    );
+  });
+
+  it('throws InvalidModelOutputError when a defined field comes back as a number instead of the expected type', async () => {
+    mockParsedResponse({ name: 42, email: null, reasoning: 'r' });
+
+    const extractor = new GroundedExtractor({ fields, fallbackValue });
+    await expect(extractor.extract({ message: "I'm Ada Lovelace" })).rejects.toBeInstanceOf(
+      InvalidModelOutputError
+    );
   });
 });

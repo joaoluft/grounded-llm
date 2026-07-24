@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GroundedGenerator } from '../../../src/generators/grounded-generator.js';
+import { InvalidModelOutputError } from '../../../src/core/errors.js';
 
 const parseMock = vi.fn();
 
@@ -16,6 +17,38 @@ function mockParsedResponse(parsed: unknown) {
     choices: [{ message: { refusal: null, parsed } }],
   });
 }
+
+describe('GroundedGenerator result parity: standalone vs langchainModel (006-langchain-model-support, US2)', () => {
+  const EQUIVALENT_OUTPUT = {
+    extracted_facts: ['Paris is the capital of France.'],
+    sufficient_context: true,
+    reasoning: 'The context directly states the capital.',
+    final_answer: 'Paris is the capital of France.',
+  };
+  const REQUEST = {
+    context: 'Paris is the capital of France.',
+    question: 'What is the capital of France?',
+  };
+
+  it('returns the exact same GroundedCallResult shape/values in both modes (FR-006, SC-003)', async () => {
+    process.env['OPENAI_API_KEY'] = 'test-key';
+    parseMock.mockReset();
+    mockParsedResponse(EQUIVALENT_OUTPUT);
+    const standaloneResult = await new GroundedGenerator({
+      fallbackValue: "I don't know.",
+    }).generate(REQUEST);
+
+    const fakeModel = {
+      withStructuredOutput: vi.fn(() => ({ invoke: async () => EQUIVALENT_OUTPUT })),
+    } as any;
+    const langchainResult = await new GroundedGenerator({
+      fallbackValue: "I don't know.",
+      langchainModel: fakeModel,
+    }).generate(REQUEST);
+
+    expect(langchainResult).toEqual(standaloneResult);
+  });
+});
 
 describe('GroundedGenerator - sufficient-context happy path (US1)', () => {
   beforeEach(() => {
@@ -286,5 +319,25 @@ describe('GroundedGenerator - invalid question (US1 edge case)', () => {
       /question/i
     );
     expect(parseMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('GroundedGenerator - malformed model output (defense-in-depth for the langchainModel path)', () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env['OPENAI_API_KEY'] = 'test-key';
+  });
+
+  it('throws InvalidModelOutputError, not a raw TypeError, when extracted_facts is missing', async () => {
+    mockParsedResponse({
+      sufficient_context: true,
+      reasoning: 'r',
+      final_answer: 'a',
+    });
+
+    const generator = new GroundedGenerator({ fallbackValue: "I don't know." });
+    await expect(
+      generator.generate({ context: 'some context', question: 'some question' })
+    ).rejects.toBeInstanceOf(InvalidModelOutputError);
   });
 });

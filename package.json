@@ -1,6 +1,6 @@
 {
   "name": "grounded-llm",
-  "version": "0.1.6",
+  "version": "0.1.12",
   "description": "TypeScript library to reduce hallucination in LLM-generated responses and decisions by grounding them in retrieved context.",
   "type": "module",
   "license": "MIT",
@@ -50,8 +50,17 @@
     "openai": "^4.68.0",
     "zod": "^3.23.8"
   },
+  "peerDependencies": {
+    "@langchain/core": ">=0.3.58 <2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@langchain/core": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@langchain/core": "^1.2.3",
     "@types/node": "^22.7.5",
     "@typescript-eslint/eslint-plugin": "^8.64.0",
     "@typescript-eslint/parser": "^8.64.0",

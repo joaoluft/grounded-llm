@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GroundedEnricher } from '../../../src/generators/grounded-enricher.js';
+import { InvalidModelOutputError } from '../../../src/core/errors.js';
 
 const parseMock = vi.fn();
 
@@ -16,6 +17,28 @@ function mockParsedResponse(parsed: unknown) {
     choices: [{ message: { refusal: null, parsed } }],
   });
 }
+
+describe('GroundedEnricher langchainModel dispatch (006-langchain-model-support, US1)', () => {
+  it('routes the call through a fake LangChain chat model instead of an OpenAI client', async () => {
+    const invoke = vi.fn(async () => ({
+      extracted_facts: ['Ships in 3 business days.'],
+      sufficient_context: true,
+      reasoning: 'The context adds shipping time.',
+      enriched_text: 'Thanks for your order! Ships in 3 business days.',
+    }));
+    const fakeModel = { withStructuredOutput: vi.fn(() => ({ invoke })) } as any;
+
+    const enricher = new GroundedEnricher({ langchainModel: fakeModel });
+    const result = await enricher.generate({
+      baseContent: 'Thanks for your order!',
+      context: 'Ships in 3 business days.',
+    });
+
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(parseMock).not.toHaveBeenCalled();
+    expect(result.finalAnswer).toBe('Thanks for your order! Ships in 3 business days.');
+  });
+});
 
 describe('GroundedEnricher - sufficient-context happy path (US1)', () => {
   beforeEach(() => {
@@ -203,5 +226,25 @@ describe('GroundedEnricher - no fallbackValue configured (003-optional-fallback 
 
     expect(result.usedFallback).toBe(true);
     expect(result.finalAnswer).toBe('Thanks for your order!');
+  });
+});
+
+describe('GroundedEnricher - malformed model output (defense-in-depth for the langchainModel path)', () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env['OPENAI_API_KEY'] = 'test-key';
+  });
+
+  it('throws InvalidModelOutputError, not a raw TypeError, when extracted_facts is missing', async () => {
+    mockParsedResponse({
+      sufficient_context: true,
+      reasoning: 'r',
+      enriched_text: 'a',
+    });
+
+    const enricher = new GroundedEnricher({ fallbackValue: 'N/A' });
+    await expect(
+      enricher.generate({ baseContent: 'base', context: 'fact' })
+    ).rejects.toBeInstanceOf(InvalidModelOutputError);
   });
 });
