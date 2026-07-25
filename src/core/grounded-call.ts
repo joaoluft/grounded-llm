@@ -1,24 +1,17 @@
 import OpenAI from 'openai';
-import type { ChatCompletionParseParams } from 'openai/resources/beta/chat/completions.mjs';
 import type { GroundedCallConfig } from './types.js';
-import { ContextTooLargeError } from './errors.js';
+import { ContextTooLargeError, InvalidModelOutputError, ModelUnavailableError } from './errors.js';
 import { estimateTokens, getMaxContextTokens } from './context-window.js';
-import type { ModelClient, ParsedModelOutput } from './model-client.js';
-import { OpenAiModelClient } from './model-client.js';
+import type { LLMProviderContract, ProviderRequest, ProviderResponse } from '../providers/types.js';
+import { providerRegistry } from '../providers/registry.js';
+import { resolveProviderId } from '../providers/config.js';
+import type { ModelClient } from './model-client.js';
 import { LangChainModelClient } from './langchain-model-client.js';
 
-/** Default context-window limit used in LangChain mode, where there is no OpenAI `model` id to derive a known limit from (006-langchain-model-support FR-004). */
-const LANGCHAIN_MODE_DEFAULT_MAX_CONTEXT_TOKENS = 128_000;
-
-/**
- * Shared base for components that call an OpenAI chat model with structured output,
- * a mandatory fallback, and a distinct operational-error surface (FR-005, FR-008,
- * FR-010, FR-011, FR-012). Reusable by a future `GroundedDecider` — keep this file
- * free of `GroundedGenerator`-specific behavior.
- */
 export abstract class GroundedCall<TFallback = string> {
-  protected readonly client?: OpenAI;
-  protected readonly modelClient: ModelClient;
+  protected readonly providerId: string;
+  protected readonly providerAdapter?: LLMProviderContract;
+  protected readonly modelClient?: ModelClient;
   protected readonly model: string;
   protected readonly fallbackValue?: TFallback;
   protected readonly temperature: number;
@@ -35,58 +28,67 @@ export abstract class GroundedCall<TFallback = string> {
     }
     this.fallbackValue = config.fallbackValue;
 
-    if (config.langchainModel) {
-      if (
-        config.client ||
+    if (config.model !== undefined && config.model.trim().length === 0) {
+      throw new Error('GroundedCall: `model` must not be an empty string.');
+    }
+
+    const hasLangchain = !!config.langchainModel;
+    if (
+      hasLangchain &&
+      (config.client !== undefined ||
         config.apiKey !== undefined ||
         config.model !== undefined ||
-        config.temperature !== undefined
-      ) {
-        throw new Error(
-          'GroundedCall: `langchainModel` cannot be combined with `client`, `apiKey`, `model`, or ' +
-            '`temperature` — these two modes are mutually exclusive. The LangChain chat model already ' +
-            'carries its own credentials, model id, and temperature.'
-        );
-      }
-      this.model = 'langchain-model';
-      this.modelClient = new LangChainModelClient(config.langchainModel);
-      this.maxContextTokens = config.maxContextTokens ?? LANGCHAIN_MODE_DEFAULT_MAX_CONTEXT_TOKENS;
-    } else if (config.client) {
-      this.client = config.client;
-      if (config.model !== undefined && config.model.trim().length === 0) {
-        throw new Error('GroundedCall: `model` must not be an empty string.');
-      }
-      this.model = config.model ?? 'gpt-4o-mini';
-      this.modelClient = new OpenAiModelClient(this.client);
-      this.maxContextTokens = config.maxContextTokens ?? getMaxContextTokens(this.model);
-    } else {
-      if (config.model !== undefined && config.model.trim().length === 0) {
-        throw new Error('GroundedCall: `model` must not be an empty string.');
-      }
-      this.model = config.model ?? 'gpt-4o-mini';
+        config.temperature !== undefined)
+    ) {
+      throw new Error(
+        'GroundedCall: `langchainModel` is mutually exclusive with `client`, `apiKey`, `model`, and `temperature`.'
+      );
+    }
 
-      const apiKey = config.apiKey ?? process.env['OPENAI_API_KEY'];
-      if (!apiKey || apiKey.trim().length === 0) {
-        throw new Error(
-          'GroundedCall: no `apiKey` provided and OPENAI_API_KEY is not set in the environment.'
-        );
+    if (hasLangchain) {
+      this.modelClient = new LangChainModelClient(config.langchainModel!);
+      this.providerId = 'langchain';
+      this.model = 'langchain';
+      this.temperature = 0;
+      this.maxContextTokens = config.maxContextTokens ?? 128_000;
+    } else {
+      this.providerId = resolveProviderId(config.provider);
+      this.providerAdapter =
+        config.providerAdapter ??
+        providerRegistry.getProvider(this.providerId, {
+          client: config.client,
+          apiKey: config.apiKey,
+          ...config.providerOptions,
+        });
+
+      if (config.model) {
+        this.model = config.model;
+      } else if (this.providerId === 'anthropic') {
+        this.model = 'claude-3-5-haiku-latest';
+      } else if (this.providerId === 'google') {
+        this.model = 'gemini-1.5-flash';
+      } else {
+        this.model = 'gpt-4o-mini';
       }
-      this.client = new OpenAI({ apiKey });
-      this.modelClient = new OpenAiModelClient(this.client);
+
+      this.temperature = config.temperature ?? 0;
       this.maxContextTokens = config.maxContextTokens ?? getMaxContextTokens(this.model);
     }
 
-    this.temperature = config.temperature ?? 0;
     this.identity = config.identity;
     this.rules = config.rules;
     this.tone = config.tone;
   }
 
-  /**
-   * Appends the developer-supplied `identity`/`rules`/`tone` (if provided) as
-   * additional sections after `basePrompt`, in that order, so they can never
-   * override the component's built-in grounding instructions.
-   */
+  protected get client(): OpenAI | undefined {
+    if (this.modelClient) return undefined;
+    if (this.providerAdapter && 'client' in (this.providerAdapter as any)) {
+      const c = (this.providerAdapter as any).client;
+      if (c) return c as OpenAI;
+    }
+    return undefined;
+  }
+
   protected buildSystemPrompt(basePrompt: string): string {
     let prompt = basePrompt;
     if (this.identity) {
@@ -101,7 +103,6 @@ export abstract class GroundedCall<TFallback = string> {
     return prompt;
   }
 
-  /** Throws ContextTooLargeError (FR-011) without calling the model. */
   protected assertContextWithinLimit(promptText: string): void {
     const estimated = estimateTokens(promptText);
     if (estimated > this.maxContextTokens) {
@@ -112,17 +113,50 @@ export abstract class GroundedCall<TFallback = string> {
     }
   }
 
-  /**
-   * Calls the model with structured-output parsing, translating failures into the
-   * distinct operational-error types (FR-010, FR-012). Never retries automatically.
-   * Delegates to `this.modelClient`, which is either `OpenAiModelClient` (standalone
-   * mode) or `LangChainModelClient` (006-langchain-model-support) — the two backends
-   * share this exact same call surface, so no other method needs to know which one
-   * is in use.
-   */
-  protected async callModel<Params extends ChatCompletionParseParams>(
-    params: Params
-  ): Promise<ParsedModelOutput> {
-    return this.modelClient.parse(params);
+  protected async callModel<Params extends Record<string, any>>(params: Params): Promise<any> {
+    if (this.modelClient) {
+      return this.modelClient.parse(params as any);
+    }
+
+    const messages = (params.messages as Array<{ role: string; content: string }>) || [];
+    const systemMsg = messages.find((m) => m.role === 'system')?.content;
+    const userMsg = messages.find((m) => m.role === 'user')?.content || '';
+
+    const req: ProviderRequest = {
+      operation: 'completeStructured',
+      model: params.model || this.model,
+      temperature: params.temperature ?? this.temperature,
+      systemInstruction: systemMsg,
+      prompt: userMsg,
+      schema: params.response_format,
+    };
+
+    try {
+      const response: ProviderResponse<any> = await this.providerAdapter!.completeStructured(req);
+      return response.data;
+    } catch (error) {
+      if (
+        error instanceof InvalidModelOutputError ||
+        error instanceof ContextTooLargeError ||
+        error instanceof ModelUnavailableError
+      ) {
+        throw error;
+      }
+      if (error && typeof error === 'object' && 'name' in error) {
+        if (
+          error.name === 'LengthFinishReasonError' ||
+          error.name === 'ContentFilterFinishReasonError'
+        ) {
+          throw new InvalidModelOutputError(
+            `Model response failed structured output validation: ${(error as Error).message}`,
+            { cause: error }
+          );
+        }
+      }
+      throw new ModelUnavailableError(
+        `Call to the model failed: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error }
+      );
+    }
   }
 }

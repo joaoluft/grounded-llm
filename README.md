@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  ⚠️ <strong>This version works with the OpenAI API — directly, or via an optional LangChain chat model.</strong><br/>
-  ⚠️ <strong>Esta versão funciona com a API da OpenAI — diretamente, ou via um chat model LangChain opcional.</strong>
+  ⚡ <strong>Supports multiple LLM providers: OpenAI (default), Anthropic (Claude), and Google (Gemini).</strong><br/>
+  ⚡ <strong>Suporta múltiplos provedores LLM: OpenAI (padrão), Anthropic (Claude) e Google (Gemini).</strong>
 </p>
 
 ---
@@ -21,11 +21,61 @@ TypeScript library to reduce hallucination in LLM-generated responses, by forcin
 literal fact extraction and an explicit sufficiency check before generating a final
 answer.
 
-> **This version targets the OpenAI API.** By default, each component uses the
-> official `openai` client internally (injected by you or created from an `apiKey`).
-> Optionally, you can instead pass an already-configured LangChain chat model via
-> `langchainModel` — see ["Using a LangChain
-> model"](#using-a-langchain-model-langsmith-tracing) below.
+> **Multi-Provider Support**: Supports OpenAI (default), Anthropic (Claude), and Google (Gemini) out of the box with 100% backward compatibility for existing OpenAI configurations. You can select providers dynamically or add custom provider adapters by implementing `LLMProviderContract`.
+
+### Provider Selection & Configuration
+
+Providers are resolved using deterministic precedence:
+
+1. **Explicit parameter** (`provider: 'anthropic'` or `provider: 'google'`)
+2. **Environment variable** (`GROUNDED_LLM_PROVIDER` or `LLM_PROVIDER`)
+3. **Default** (`'openai'`)
+
+```ts
+import { GroundedGenerator, providerRegistry } from 'grounded-llm';
+
+// Example: Using Anthropic provider
+const generator = new GroundedGenerator({
+  provider: 'anthropic',
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  fallbackValue: "I don't have enough information to answer that.",
+});
+
+// Example: Using Google Gemini provider
+const geminiGenerator = new GroundedGenerator({
+  provider: 'google',
+  apiKey: process.env.GEMINI_API_KEY,
+  fallbackValue: "I don't have enough information to answer that.",
+});
+```
+
+### Adding a Custom Provider
+
+Extend `grounded-llm` with custom providers by implementing `LLMProviderContract` and registering it in `providerRegistry`:
+
+```ts
+import {
+  providerRegistry,
+  type LLMProviderContract,
+  type ProviderRequest,
+  type ProviderResponse,
+} from 'grounded-llm';
+
+class CustomProviderAdapter implements LLMProviderContract {
+  readonly providerId = 'my-custom-provider';
+  readonly capabilities = { structuredOutput: true };
+
+  async completeStructured<T>(request: ProviderRequest): Promise<ProviderResponse<T>> {
+    // Implement model call logic and return normalized ProviderResponse
+    return {
+      data: {} as T,
+      finishStatus: 'stop',
+    };
+  }
+}
+
+providerRegistry.registerProvider(new CustomProviderAdapter());
+```
 
 ### How it fights hallucination: chain-of-thought grounding
 
