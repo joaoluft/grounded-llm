@@ -7,6 +7,13 @@ export {
   ProviderError,
 } from './core/errors.js';
 export type { ProviderErrorCategory } from './core/errors.js';
+export { classifyOperationalError } from './core/lifecycle-callbacks.js';
+export type {
+  LifecycleErrorType,
+  CallEvent,
+  ResultEvent,
+  ErrorEvent,
+} from './core/lifecycle-callbacks.js';
 
 export { GroundedGenerator } from './generators/grounded-generator.js';
 export type { GenerationRequest } from './generators/grounded-generator.js';

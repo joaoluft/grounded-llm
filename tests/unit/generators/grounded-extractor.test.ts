@@ -1,15 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { z } from 'zod';
 import { GroundedExtractor } from '../../../src/generators/grounded-extractor.js';
-import { InvalidModelOutputError } from '../../../src/core/errors.js';
+import { InvalidModelOutputError, ContextTooLargeError } from '../../../src/core/errors.js';
 
 const parseMock = vi.fn();
 
 vi.mock('openai', () => {
   return {
-    default: vi.fn().mockImplementation(function () { return {
-      beta: { chat: { completions: { parse: parseMock } } }
-    }; }),
+    default: vi.fn().mockImplementation(function () {
+      return {
+        beta: { chat: { completions: { parse: parseMock } } },
+      };
+    }),
   };
 });
 
@@ -264,5 +266,61 @@ describe('GroundedExtractor - malformed model output (defense-in-depth for the l
     await expect(extractor.extract({ message: "I'm Ada Lovelace" })).rejects.toBeInstanceOf(
       InvalidModelOutputError
     );
+  });
+});
+
+describe('GroundedExtractor - lifecycle callbacks: successful call (008-structured-logging-hooks US1)', () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env['OPENAI_API_KEY'] = 'test-key';
+  });
+
+  it('fires onCall and onResult with the GroundedExtractor.extract operation label and matching callId', async () => {
+    mockParsedResponse({ name: 'Ada Lovelace', email: null, reasoning: 'r' });
+
+    const onCall = vi.fn();
+    const onResult = vi.fn();
+    const extractor = new GroundedExtractor({ fields, fallbackValue, onCall, onResult });
+    await extractor.extract({ message: "I'm Ada Lovelace" });
+
+    expect(onCall.mock.calls[0][0].operation).toBe('GroundedExtractor.extract');
+    expect(onCall.mock.calls[0][0].callId).toBe(onResult.mock.calls[0][0].callId);
+    expect(onResult.mock.calls[0][0].usedFallback).toBe(false);
+  });
+});
+
+describe('GroundedExtractor - lifecycle callbacks: failure classification (008-structured-logging-hooks US2)', () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env['OPENAI_API_KEY'] = 'test-key';
+  });
+
+  it("reports errorType 'invalid-output' when the model refuses to respond", async () => {
+    parseMock.mockResolvedValueOnce({
+      choices: [{ message: { refusal: 'cannot help', parsed: null } }],
+    });
+    const onError = vi.fn();
+    const extractor = new GroundedExtractor({ fields, fallbackValue, onError });
+
+    await expect(extractor.extract({ message: "I'm Ada Lovelace" })).rejects.toBeInstanceOf(
+      InvalidModelOutputError
+    );
+    expect(onError.mock.calls[0][0].errorType).toBe('invalid-output');
+  });
+
+  it("reports errorType 'context-too-large' when the prompt exceeds maxContextTokens, without ever calling the model", async () => {
+    const onError = vi.fn();
+    const extractor = new GroundedExtractor({
+      fields,
+      fallbackValue,
+      maxContextTokens: 1,
+      onError,
+    });
+
+    await expect(extractor.extract({ message: 'a'.repeat(1000) })).rejects.toBeInstanceOf(
+      ContextTooLargeError
+    );
+    expect(parseMock).not.toHaveBeenCalled();
+    expect(onError.mock.calls[0][0].errorType).toBe('context-too-large');
   });
 });

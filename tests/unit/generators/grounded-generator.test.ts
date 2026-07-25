@@ -1,14 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { APIConnectionError } from 'openai/error.mjs';
 import { GroundedGenerator } from '../../../src/generators/grounded-generator.js';
-import { InvalidModelOutputError } from '../../../src/core/errors.js';
+import {
+  InvalidModelOutputError,
+  ModelUnavailableError,
+  ContextTooLargeError,
+} from '../../../src/core/errors.js';
 
 const parseMock = vi.fn();
 
 vi.mock('openai', () => {
   return {
-    default: vi.fn().mockImplementation(function () { return {
-      beta: { chat: { completions: { parse: parseMock } } }
-    }; }),
+    default: vi.fn().mockImplementation(function () {
+      return {
+        beta: { chat: { completions: { parse: parseMock } } },
+      };
+    }),
   };
 });
 
@@ -47,6 +54,35 @@ describe('GroundedGenerator result parity: standalone vs langchainModel (006-lan
     }).generate(REQUEST);
 
     expect(langchainResult).toEqual(standaloneResult);
+  });
+});
+
+describe('GroundedGenerator - lifecycle callbacks fire identically under langchainModel (008-structured-logging-hooks FR-008)', () => {
+  it('fires onCall/onResult with the same payload shape as standalone mode', async () => {
+    const fakeModel = {
+      withStructuredOutput: vi.fn(() => ({
+        invoke: async () => ({
+          extracted_facts: ['fact'],
+          sufficient_context: true,
+          reasoning: 'r',
+          final_answer: 'a',
+        }),
+      })),
+    } as any;
+
+    const onCall = vi.fn();
+    const onResult = vi.fn();
+    const generator = new GroundedGenerator({
+      fallbackValue: "I don't know.",
+      langchainModel: fakeModel,
+      onCall,
+      onResult,
+    });
+    await generator.generate({ context: 'fact', question: 'q?' });
+
+    expect(onCall.mock.calls[0][0].operation).toBe('GroundedGenerator.generate');
+    expect(onCall.mock.calls[0][0].callId).toBe(onResult.mock.calls[0][0].callId);
+    expect(onResult.mock.calls[0][0].usedFallback).toBe(false);
   });
 });
 
@@ -339,5 +375,196 @@ describe('GroundedGenerator - malformed model output (defense-in-depth for the l
     await expect(
       generator.generate({ context: 'some context', question: 'some question' })
     ).rejects.toBeInstanceOf(InvalidModelOutputError);
+  });
+});
+
+describe('GroundedGenerator - lifecycle callbacks: successful call (008-structured-logging-hooks US1)', () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env['OPENAI_API_KEY'] = 'test-key';
+  });
+
+  it('fires onCall before the model request and onResult after, with matching callId, durationMs, and usedFallback; never fires onError', async () => {
+    mockParsedResponse({
+      extracted_facts: ['Paris is the capital of France.'],
+      sufficient_context: true,
+      reasoning: 'r',
+      final_answer: 'Paris is the capital of France.',
+    });
+
+    const onCall = vi.fn();
+    const onResult = vi.fn();
+    const onError = vi.fn();
+    const generator = new GroundedGenerator({
+      fallbackValue: "I don't know.",
+      onCall,
+      onResult,
+      onError,
+    });
+    await generator.generate({
+      context: 'Paris is the capital of France.',
+      question: 'What is the capital of France?',
+    });
+
+    expect(onCall).toHaveBeenCalledTimes(1);
+    expect(onResult).toHaveBeenCalledTimes(1);
+    expect(onError).not.toHaveBeenCalled();
+    expect(onCall.mock.calls[0][0].operation).toBe('GroundedGenerator.generate');
+    expect(onCall.mock.calls[0][0].callId).toBe(onResult.mock.calls[0][0].callId);
+    expect(onResult.mock.calls[0][0].durationMs).toBeGreaterThanOrEqual(0);
+    expect(onResult.mock.calls[0][0].usedFallback).toBe(false);
+  });
+
+  it('produces an identical result whether or not callbacks are configured (FR-009)', async () => {
+    const output = {
+      extracted_facts: ['fact'],
+      sufficient_context: true,
+      reasoning: 'r',
+      final_answer: 'a',
+    };
+    mockParsedResponse(output);
+    const withoutCallbacks = await new GroundedGenerator({
+      fallbackValue: "I don't know.",
+    }).generate({ context: 'fact', question: 'q?' });
+
+    mockParsedResponse(output);
+    const withCallbacks = await new GroundedGenerator({
+      fallbackValue: "I don't know.",
+      onCall: vi.fn(),
+      onResult: vi.fn(),
+      onError: vi.fn(),
+    }).generate({ context: 'fact', question: 'q?' });
+
+    expect(withCallbacks).toEqual(withoutCallbacks);
+  });
+});
+
+describe('GroundedGenerator - lifecycle callbacks: failure classification (008-structured-logging-hooks US2)', () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env['OPENAI_API_KEY'] = 'test-key';
+  });
+
+  it("reports errorType 'model-unavailable' when the model backend fails, never fires onResult", async () => {
+    parseMock.mockRejectedValueOnce(new APIConnectionError({ message: 'network down' }));
+    const onResult = vi.fn();
+    const onError = vi.fn();
+    const generator = new GroundedGenerator({
+      fallbackValue: "I don't know.",
+      onResult,
+      onError,
+    });
+
+    await expect(generator.generate({ context: 'fact', question: 'q?' })).rejects.toBeInstanceOf(
+      ModelUnavailableError
+    );
+
+    expect(onResult).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError.mock.calls[0][0].errorType).toBe('model-unavailable');
+  });
+
+  it("reports errorType 'invalid-output' when the model refuses to respond", async () => {
+    parseMock.mockResolvedValueOnce({
+      choices: [{ message: { refusal: 'I cannot help with that.', parsed: null } }],
+    });
+    const onError = vi.fn();
+    const generator = new GroundedGenerator({ fallbackValue: "I don't know.", onError });
+
+    await expect(generator.generate({ context: 'fact', question: 'q?' })).rejects.toBeInstanceOf(
+      InvalidModelOutputError
+    );
+
+    expect(onError.mock.calls[0][0].errorType).toBe('invalid-output');
+  });
+
+  it("reports errorType 'context-too-large' when the prompt exceeds maxContextTokens, without ever calling the model", async () => {
+    const onCall = vi.fn();
+    const onError = vi.fn();
+    const generator = new GroundedGenerator({
+      fallbackValue: "I don't know.",
+      maxContextTokens: 1,
+      onCall,
+      onError,
+    });
+
+    await expect(
+      generator.generate({ context: 'a'.repeat(1000), question: 'q?' })
+    ).rejects.toBeInstanceOf(ContextTooLargeError);
+
+    expect(parseMock).not.toHaveBeenCalled();
+    expect(onCall).toHaveBeenCalledTimes(1);
+    expect(onError.mock.calls[0][0].errorType).toBe('context-too-large');
+  });
+});
+
+describe('GroundedGenerator - lifecycle callbacks: isolation and edge cases (008-structured-logging-hooks US3)', () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env['OPENAI_API_KEY'] = 'test-key';
+  });
+
+  it('does not let throwing callbacks affect a successful call result', async () => {
+    mockParsedResponse({
+      extracted_facts: ['fact'],
+      sufficient_context: true,
+      reasoning: 'r',
+      final_answer: 'a',
+    });
+    const generator = new GroundedGenerator({
+      fallbackValue: "I don't know.",
+      onCall: () => {
+        throw new Error('boom');
+      },
+      onResult: () => {
+        throw new Error('boom');
+      },
+    });
+
+    const result = await generator.generate({ context: 'fact', question: 'q?' });
+    expect(result.finalAnswer).toBe('a');
+  });
+
+  it('does not let throwing callbacks affect a failing call, which still rejects with its original error', async () => {
+    parseMock.mockRejectedValueOnce(new APIConnectionError({ message: 'network down' }));
+    const generator = new GroundedGenerator({
+      fallbackValue: "I don't know.",
+      onCall: () => {
+        throw new Error('boom');
+      },
+      onError: () => {
+        throw new Error('boom');
+      },
+    });
+
+    await expect(generator.generate({ context: 'fact', question: 'q?' })).rejects.toBeInstanceOf(
+      ModelUnavailableError
+    );
+  });
+
+  it('fires onResult (not onError) with usedFallback: true when a fallback value is used', async () => {
+    mockParsedResponse({
+      extracted_facts: [],
+      sufficient_context: false,
+      reasoning: 'No relevant information found.',
+      final_answer: '',
+    });
+    const onResult = vi.fn();
+    const onError = vi.fn();
+    const generator = new GroundedGenerator({
+      fallbackValue: "I don't know.",
+      onResult,
+      onError,
+    });
+
+    const result = await generator.generate({
+      context: 'Completely unrelated text.',
+      question: 'What is the capital of France?',
+    });
+
+    expect(result.usedFallback).toBe(true);
+    expect(onError).not.toHaveBeenCalled();
+    expect(onResult).toHaveBeenCalledTimes(1);
+    expect(onResult.mock.calls[0][0].usedFallback).toBe(true);
   });
 });

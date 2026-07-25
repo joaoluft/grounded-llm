@@ -338,6 +338,71 @@ treated as invalid usage and throws immediately, without calling the model; an
 empty/blank/absent `context` is not an error — the message is simply composed from
 `instructions` alone.
 
+### Structured logging hooks
+
+All four generators (`GroundedGenerator`, `GroundedEnricher`, `GroundedExtractor`,
+`GroundedComposer`) accept three optional lifecycle callbacks at construction —
+`onCall`, `onResult`, `onError` — so you can observe every call in production without
+wrapping each `.generate()`/`.extract()`/`.compose()` call site by hand. They work
+identically in standalone mode and with `langchainModel`.
+
+- `onCall` fires once, right before the model is reached.
+- `onResult` fires once, on success, with `durationMs` and `usedFallback`.
+- `onError` fires once, on failure, with `durationMs` and an `errorType` classifying
+  the failure as `'model-unavailable'`, `'invalid-output'`, `'context-too-large'`,
+  `'provider-error'`, or `'unknown'`.
+- Exactly one of `onResult`/`onError` fires per call. Every event carries a `callId`
+  shared across a call's `onCall`/`onResult`/`onError`, so you can correlate them even
+  under concurrent calls.
+- Callbacks are synchronous/fire-and-forget: they are never awaited, and an exception
+  thrown inside one is caught and discarded — it can never block, delay, or change the
+  call's own result.
+- Payloads carry metadata only (`callId`, `operation`, timing, fallback/error info) —
+  never the raw `context`/`question`/`instructions`/answer text.
+
+Basic console logging:
+
+```ts
+import { GroundedGenerator } from 'grounded-llm';
+
+const generator = new GroundedGenerator({
+  fallbackValue: "I don't know.",
+  onCall: ({ callId, operation }) => console.log(`[${callId}] ${operation} started`),
+  onResult: ({ callId, durationMs, usedFallback }) =>
+    console.log(`[${callId}] ok in ${durationMs}ms (usedFallback=${usedFallback})`),
+  onError: ({ callId, durationMs, errorType }) =>
+    console.error(`[${callId}] failed in ${durationMs}ms (${errorType})`),
+});
+```
+
+Prometheus-style metrics:
+
+```ts
+import { Counter, Histogram } from 'prom-client';
+import { GroundedGenerator } from 'grounded-llm';
+
+const callDuration = new Histogram({
+  name: 'grounded_llm_call_duration_ms',
+  help: 'Duration of grounded-llm calls',
+  labelNames: ['operation', 'outcome'],
+});
+const callErrors = new Counter({
+  name: 'grounded_llm_call_errors_total',
+  help: 'Failed grounded-llm calls by type',
+  labelNames: ['operation', 'error_type'],
+});
+
+const generator = new GroundedGenerator({
+  fallbackValue: "I don't know.",
+  onResult: ({ operation, durationMs }) =>
+    callDuration.labels(operation, 'success').observe(durationMs),
+  onError: ({ operation, durationMs, errorType }) => {
+    callDuration.labels(operation, 'error').observe(durationMs);
+    callErrors.labels(operation, errorType).inc();
+  },
+});
+```
+
 ### Releasing
 
 CI (`.github/workflows/ci.yml`) runs type-check, tests, and build on every push/PR to
@@ -630,6 +695,71 @@ ignorado — ele existe apenas porque faz parte do formato compartilhado de
 o leia. Um `instructions` vazio/em branco é tratado como uso inválido e lança uma
 exceção imediatamente, sem chamar o modelo; um `context` vazio/em branco/ausente não é
 erro — a mensagem é simplesmente composta a partir de `instructions` sozinha.
+
+### Hooks de logging estruturado
+
+Os quatro generators (`GroundedGenerator`, `GroundedEnricher`, `GroundedExtractor`,
+`GroundedComposer`) aceitam três callbacks opcionais de ciclo de vida na construção —
+`onCall`, `onResult`, `onError` — para observar cada chamada em produção sem precisar
+envolver manualmente cada chamada de `.generate()`/`.extract()`/`.compose()`. Funcionam
+de forma idêntica em modo standalone e com `langchainModel`.
+
+- `onCall` dispara uma vez, imediatamente antes de a chamada alcançar o modelo.
+- `onResult` dispara uma vez, em caso de sucesso, com `durationMs` e `usedFallback`.
+- `onError` dispara uma vez, em caso de falha, com `durationMs` e um `errorType`
+  classificando a falha como `'model-unavailable'`, `'invalid-output'`,
+  `'context-too-large'`, `'provider-error'`, ou `'unknown'`.
+- Exatamente um entre `onResult`/`onError` dispara por chamada. Todo evento carrega um
+  `callId` compartilhado entre `onCall`/`onResult`/`onError` daquela chamada, permitindo
+  correlacioná-los mesmo sob chamadas concorrentes.
+- Os callbacks são síncronos/fire-and-forget: nunca são aguardados (`await`), e uma
+  exceção lançada dentro de um deles é capturada e descartada — nunca pode bloquear,
+  atrasar ou alterar o resultado da própria chamada.
+- Os payloads carregam apenas metadados (`callId`, `operation`, tempos, informação de
+  fallback/erro) — nunca o texto bruto de `context`/`question`/`instructions`/resposta.
+
+Logging básico via console:
+
+```ts
+import { GroundedGenerator } from 'grounded-llm';
+
+const generator = new GroundedGenerator({
+  fallbackValue: 'Não sei.',
+  onCall: ({ callId, operation }) => console.log(`[${callId}] ${operation} iniciada`),
+  onResult: ({ callId, durationMs, usedFallback }) =>
+    console.log(`[${callId}] ok em ${durationMs}ms (usedFallback=${usedFallback})`),
+  onError: ({ callId, durationMs, errorType }) =>
+    console.error(`[${callId}] falhou em ${durationMs}ms (${errorType})`),
+});
+```
+
+Métricas estilo Prometheus:
+
+```ts
+import { Counter, Histogram } from 'prom-client';
+import { GroundedGenerator } from 'grounded-llm';
+
+const callDuration = new Histogram({
+  name: 'grounded_llm_call_duration_ms',
+  help: 'Duração das chamadas do grounded-llm',
+  labelNames: ['operation', 'outcome'],
+});
+const callErrors = new Counter({
+  name: 'grounded_llm_call_errors_total',
+  help: 'Chamadas do grounded-llm que falharam, por tipo',
+  labelNames: ['operation', 'error_type'],
+});
+
+const generator = new GroundedGenerator({
+  fallbackValue: 'Não sei.',
+  onResult: ({ operation, durationMs }) =>
+    callDuration.labels(operation, 'success').observe(durationMs),
+  onError: ({ operation, durationMs, errorType }) => {
+    callDuration.labels(operation, 'error').observe(durationMs);
+    callErrors.labels(operation, errorType).inc();
+  },
+});
+```
 
 ### Releases
 
