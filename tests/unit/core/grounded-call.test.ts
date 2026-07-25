@@ -29,9 +29,9 @@ const parseMock = vi.fn();
 
 vi.mock('openai', () => {
   return {
-    default: vi.fn().mockImplementation(() => ({
-      beta: { chat: { completions: { parse: parseMock } } },
-    })),
+    default: vi.fn().mockImplementation(function () { return {
+      beta: { chat: { completions: { parse: parseMock } } }
+    }; }),
   };
 });
 
