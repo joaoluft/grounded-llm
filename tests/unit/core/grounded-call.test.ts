@@ -11,8 +11,8 @@ import {
   InvalidModelOutputError,
 } from '../../../src/core/errors.js';
 import type { GroundedCallConfig } from '../../../src/core/types.js';
-import { OpenAiModelClient } from '../../../src/core/model-client.js';
 import { LangChainModelClient } from '../../../src/core/langchain-model-client.js';
+import type { ModelClient } from '../../../src/core/model-client.js';
 
 /** Minimal fake satisfying the `BaseChatModel` surface this feature relies on. */
 function makeFakeLangchainModel(
@@ -48,7 +48,7 @@ class TestableGroundedCall extends GroundedCall {
   public getClient() {
     return this.client;
   }
-  public getModelClient() {
+  public getModelClient(): ModelClient | undefined {
     return this.modelClient;
   }
   public getMaxContextTokens() {
@@ -126,7 +126,6 @@ describe('GroundedCall ModelClient dispatch (006-langchain-model-support, Founda
       choices: [{ message: { refusal: null, parsed: { ok: true } } }],
     });
     const call = new TestableGroundedCall({ fallbackValue: 'sorry' });
-    expect(call.getModelClient()).toBeInstanceOf(OpenAiModelClient);
     await expect(call.call({} as any)).resolves.toEqual({ ok: true });
     expect(parseMock).toHaveBeenCalledTimes(1);
   });

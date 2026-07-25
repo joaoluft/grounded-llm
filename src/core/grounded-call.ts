@@ -5,10 +5,13 @@ import { estimateTokens, getMaxContextTokens } from './context-window.js';
 import type { LLMProviderContract, ProviderRequest, ProviderResponse } from '../providers/types.js';
 import { providerRegistry } from '../providers/registry.js';
 import { resolveProviderId } from '../providers/config.js';
+import type { ModelClient } from './model-client.js';
+import { LangChainModelClient } from './langchain-model-client.js';
 
 export abstract class GroundedCall<TFallback = string> {
   protected readonly providerId: string;
-  protected readonly providerAdapter: LLMProviderContract;
+  protected readonly providerAdapter?: LLMProviderContract;
+  protected readonly modelClient?: ModelClient;
   protected readonly model: string;
   protected readonly fallbackValue?: TFallback;
   protected readonly temperature: number;
@@ -29,44 +32,63 @@ export abstract class GroundedCall<TFallback = string> {
       throw new Error('GroundedCall: `model` must not be an empty string.');
     }
 
-    this.providerId = resolveProviderId(config.provider);
-    this.providerAdapter =
-      config.providerAdapter ??
-      providerRegistry.getProvider(this.providerId, {
-        client: config.client,
-        apiKey: config.apiKey,
-        ...config.providerOptions,
-      });
-
-    if (config.model) {
-      this.model = config.model;
-    } else if (this.providerId === 'anthropic') {
-      this.model = 'claude-3-5-haiku-latest';
-    } else if (this.providerId === 'google') {
-      this.model = 'gemini-1.5-flash';
-    } else {
-      this.model = 'gpt-4o-mini';
+    const hasLangchain = !!config.langchainModel;
+    if (
+      hasLangchain &&
+      (config.client !== undefined ||
+        config.apiKey !== undefined ||
+        config.model !== undefined ||
+        config.temperature !== undefined)
+    ) {
+      throw new Error(
+        'GroundedCall: `langchainModel` is mutually exclusive with `client`, `apiKey`, `model`, and `temperature`.'
+      );
     }
 
-    this.temperature = config.temperature ?? 0;
-    this.maxContextTokens = config.maxContextTokens ?? getMaxContextTokens(this.model);
+    if (hasLangchain) {
+      this.modelClient = new LangChainModelClient(config.langchainModel!);
+      this.providerId = 'langchain';
+      this.model = 'langchain';
+      this.temperature = 0;
+      this.maxContextTokens = config.maxContextTokens ?? 128_000;
+    } else {
+      this.providerId = resolveProviderId(config.provider);
+      this.providerAdapter =
+        config.providerAdapter ??
+        providerRegistry.getProvider(this.providerId, {
+          client: config.client,
+          apiKey: config.apiKey,
+          ...config.providerOptions,
+        });
+
+      if (config.model) {
+        this.model = config.model;
+      } else if (this.providerId === 'anthropic') {
+        this.model = 'claude-3-5-haiku-latest';
+      } else if (this.providerId === 'google') {
+        this.model = 'gemini-1.5-flash';
+      } else {
+        this.model = 'gpt-4o-mini';
+      }
+
+      this.temperature = config.temperature ?? 0;
+      this.maxContextTokens = config.maxContextTokens ?? getMaxContextTokens(this.model);
+    }
+
     this.identity = config.identity;
     this.rules = config.rules;
     this.tone = config.tone;
   }
 
-  /** Backward-compatible client getter for code/tests that inspect `this.client`. */
-  protected get client(): OpenAI {
-    if ('client' in (this.providerAdapter as any) && (this.providerAdapter as any).client) {
-      return (this.providerAdapter as any).client;
+  protected get client(): OpenAI | undefined {
+    if (this.modelClient) return undefined;
+    if (this.providerAdapter && 'client' in (this.providerAdapter as any)) {
+      const c = (this.providerAdapter as any).client;
+      if (c) return c as OpenAI;
     }
-    const apiKey = process.env.OPENAI_API_KEY || 'dummy';
-    return new OpenAI({ apiKey });
+    return undefined;
   }
 
-  /**
-   * Appends developer-supplied `identity`/`rules`/`tone` as additional sections.
-   */
   protected buildSystemPrompt(basePrompt: string): string {
     let prompt = basePrompt;
     if (this.identity) {
@@ -81,7 +103,6 @@ export abstract class GroundedCall<TFallback = string> {
     return prompt;
   }
 
-  /** Throws ContextTooLargeError (FR-011) without calling the model. */
   protected assertContextWithinLimit(promptText: string): void {
     const estimated = estimateTokens(promptText);
     if (estimated > this.maxContextTokens) {
@@ -92,10 +113,11 @@ export abstract class GroundedCall<TFallback = string> {
     }
   }
 
-  /**
-   * Dispatches model calls through the resolved provider adapter.
-   */
   protected async callModel<Params extends Record<string, any>>(params: Params): Promise<any> {
+    if (this.modelClient) {
+      return this.modelClient.parse(params as any);
+    }
+
     const messages = (params.messages as Array<{ role: string; content: string }>) || [];
     const systemMsg = messages.find((m) => m.role === 'system')?.content;
     const userMsg = messages.find((m) => m.role === 'user')?.content || '';
@@ -110,7 +132,7 @@ export abstract class GroundedCall<TFallback = string> {
     };
 
     try {
-      const response: ProviderResponse<any> = await this.providerAdapter.completeStructured(req);
+      const response: ProviderResponse<any> = await this.providerAdapter!.completeStructured(req);
       return response.data;
     } catch (error) {
       if (
