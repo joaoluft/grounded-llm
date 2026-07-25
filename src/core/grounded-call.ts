@@ -129,7 +129,16 @@ export abstract class GroundedCall<TFallback = string> {
   private safeInvoke<E>(hook: ((event: E) => void) | undefined, event: E): void {
     if (!hook) return;
     try {
-      hook(event);
+      // A callback declared as `(event) => void` may still be an async function —
+      // TypeScript allows this (`Promise<void>` is assignable to `void`), and an
+      // async callback's own throw surfaces as a promise rejection, not a
+      // synchronous throw this try/catch would see. Swallow it too, so a flaky
+      // async logging/metrics callback can never crash the process via an
+      // unhandled rejection (FR-007).
+      const maybePromise: unknown = hook(event);
+      if (maybePromise && typeof (maybePromise as { then?: unknown }).then === 'function') {
+        Promise.resolve(maybePromise as PromiseLike<unknown>).catch(() => {});
+      }
     } catch {
       // Callback exceptions must never affect the call's own result (FR-007).
     }

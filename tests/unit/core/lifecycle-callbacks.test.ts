@@ -188,6 +188,59 @@ describe('GroundedCall.withLifecycle() - callback exception isolation (US3)', ()
       })
     ).rejects.toBe(originalError);
   });
+
+  it('does not let an async callback that rejects produce an unhandled promise rejection or affect a successful call', async () => {
+    const unhandledRejections: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandledRejections.push(reason);
+    process.on('unhandledRejection', onUnhandled);
+
+    try {
+      const call = makeCall({
+        onCall: async () => {
+          throw new Error('async onCall boom');
+        },
+        onResult: async () => {
+          throw new Error('async onResult boom');
+        },
+      });
+
+      await expect(
+        call.run('Test.op', async () => ({ usedFallback: false, value: 1 }))
+      ).resolves.toEqual({ usedFallback: false, value: 1 });
+
+      // Let any unhandled rejection from the (discarded) callback promises surface.
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(unhandledRejections).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
+  });
+
+  it('does not let an async onError that rejects produce an unhandled promise rejection or affect a failing call', async () => {
+    const unhandledRejections: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandledRejections.push(reason);
+    process.on('unhandledRejection', onUnhandled);
+
+    try {
+      const originalError = new ModelUnavailableError('down');
+      const call = makeCall({
+        onError: async () => {
+          throw new Error('async onError boom');
+        },
+      });
+
+      await expect(
+        call.run('Test.op', async () => {
+          throw originalError;
+        })
+      ).rejects.toBe(originalError);
+
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(unhandledRejections).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
+  });
 });
 
 describe('GroundedCall.withLifecycle() - no callbacks configured (FR-009)', () => {
