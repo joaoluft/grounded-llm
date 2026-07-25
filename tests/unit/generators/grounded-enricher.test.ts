@@ -6,9 +6,11 @@ const parseMock = vi.fn();
 
 vi.mock('openai', () => {
   return {
-    default: vi.fn().mockImplementation(function () { return {
-      beta: { chat: { completions: { parse: parseMock } } }
-    }; }),
+    default: vi.fn().mockImplementation(function () {
+      return {
+        beta: { chat: { completions: { parse: parseMock } } },
+      };
+    }),
   };
 });
 
@@ -246,5 +248,65 @@ describe('GroundedEnricher - malformed model output (defense-in-depth for the la
     await expect(
       enricher.generate({ baseContent: 'base', context: 'fact' })
     ).rejects.toBeInstanceOf(InvalidModelOutputError);
+  });
+});
+
+describe('GroundedEnricher - lifecycle callbacks: successful call (008-structured-logging-hooks US1)', () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env['OPENAI_API_KEY'] = 'test-key';
+  });
+
+  it('fires onCall and onResult with the GroundedEnricher.generate operation label and matching callId', async () => {
+    mockParsedResponse({
+      extracted_facts: ['Ships in 3 business days.'],
+      sufficient_context: true,
+      reasoning: 'The context adds shipping time.',
+      enriched_text: 'Thanks for your order! Ships in 3 business days.',
+    });
+
+    const onCall = vi.fn();
+    const onResult = vi.fn();
+    const enricher = new GroundedEnricher({ fallbackValue: 'N/A', onCall, onResult });
+    await enricher.generate({
+      baseContent: 'Thanks for your order!',
+      context: 'Ships in 3 business days.',
+    });
+
+    expect(onCall.mock.calls[0][0].operation).toBe('GroundedEnricher.generate');
+    expect(onCall.mock.calls[0][0].callId).toBe(onResult.mock.calls[0][0].callId);
+    expect(onResult.mock.calls[0][0].usedFallback).toBe(false);
+  });
+});
+
+describe('GroundedEnricher - lifecycle callback isolation (008-structured-logging-hooks US3)', () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env['OPENAI_API_KEY'] = 'test-key';
+  });
+
+  it('does not let throwing callbacks affect the call result', async () => {
+    mockParsedResponse({
+      extracted_facts: ['Ships in 3 business days.'],
+      sufficient_context: true,
+      reasoning: 'r',
+      enriched_text: 'Thanks for your order! Ships in 3 business days.',
+    });
+
+    const enricher = new GroundedEnricher({
+      fallbackValue: 'N/A',
+      onCall: () => {
+        throw new Error('boom');
+      },
+      onResult: () => {
+        throw new Error('boom');
+      },
+    });
+
+    const result = await enricher.generate({
+      baseContent: 'Thanks for your order!',
+      context: 'Ships in 3 business days.',
+    });
+    expect(result.finalAnswer).toBe('Thanks for your order! Ships in 3 business days.');
   });
 });

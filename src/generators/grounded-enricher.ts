@@ -36,6 +36,10 @@ export class GroundedEnricher extends GroundedCall {
   }
 
   async generate(request: EnrichmentRequest): Promise<GroundedCallResult> {
+    return this.withLifecycle('GroundedEnricher.generate', () => this.doGenerate(request));
+  }
+
+  private async doGenerate(request: EnrichmentRequest): Promise<GroundedCallResult> {
     if (!request.baseContent || request.baseContent.trim().length === 0) {
       throw new Error('GroundedEnricher: `baseContent` must be a non-empty string.');
     }

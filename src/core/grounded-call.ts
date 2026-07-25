@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { randomUUID } from 'node:crypto';
 import type { GroundedCallConfig } from './types.js';
 import { ContextTooLargeError, InvalidModelOutputError, ModelUnavailableError } from './errors.js';
 import { estimateTokens, getMaxContextTokens } from './context-window.js';
@@ -7,6 +8,8 @@ import { providerRegistry } from '../providers/registry.js';
 import { resolveProviderId } from '../providers/config.js';
 import type { ModelClient } from './model-client.js';
 import { LangChainModelClient } from './langchain-model-client.js';
+import { classifyOperationalError } from './lifecycle-callbacks.js';
+import type { CallEvent, ResultEvent, ErrorEvent } from './lifecycle-callbacks.js';
 
 export abstract class GroundedCall<TFallback = string> {
   protected readonly providerId: string;
@@ -19,6 +22,9 @@ export abstract class GroundedCall<TFallback = string> {
   protected readonly identity?: string;
   protected readonly rules?: string;
   protected readonly tone?: string;
+  private readonly onCallHook?: (event: CallEvent) => void;
+  private readonly onResultHook?: (event: ResultEvent) => void;
+  private readonly onErrorHook?: (event: ErrorEvent) => void;
 
   constructor(config: GroundedCallConfig<TFallback>) {
     const isEmptyString =
@@ -78,6 +84,55 @@ export abstract class GroundedCall<TFallback = string> {
     this.identity = config.identity;
     this.rules = config.rules;
     this.tone = config.tone;
+    this.onCallHook = config.onCall;
+    this.onResultHook = config.onResult;
+    this.onErrorHook = config.onError;
+  }
+
+  /**
+   * Wraps a component's public entry-point call (e.g. `generate`/`extract`/`compose`)
+   * with the `onCall`/`onResult`/`onError` lifecycle callbacks (008-structured-logging-hooks).
+   * Dispatched around the whole operation — not just `callModel` — since `usedFallback`
+   * and pre-model validation errors (e.g. `ContextTooLargeError`) are only known at this
+   * level (research.md Decision 1). Never lets a callback's own exception affect `fn`'s
+   * outcome (FR-007), and always resolves/rejects with `fn`'s own outcome unchanged.
+   */
+  protected async withLifecycle<T extends { usedFallback: boolean }>(
+    operation: string,
+    fn: () => Promise<T>
+  ): Promise<T> {
+    const callId = randomUUID();
+    this.safeInvoke(this.onCallHook, { callId, operation });
+    const start = performance.now();
+
+    try {
+      const result = await fn();
+      this.safeInvoke(this.onResultHook, {
+        callId,
+        operation,
+        durationMs: performance.now() - start,
+        usedFallback: result.usedFallback,
+      });
+      return result;
+    } catch (error) {
+      this.safeInvoke(this.onErrorHook, {
+        callId,
+        operation,
+        durationMs: performance.now() - start,
+        errorType: classifyOperationalError(error),
+        error,
+      });
+      throw error;
+    }
+  }
+
+  private safeInvoke<E>(hook: ((event: E) => void) | undefined, event: E): void {
+    if (!hook) return;
+    try {
+      hook(event);
+    } catch {
+      // Callback exceptions must never affect the call's own result (FR-007).
+    }
   }
 
   protected get client(): OpenAI | undefined {

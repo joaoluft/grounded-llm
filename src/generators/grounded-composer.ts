@@ -39,6 +39,10 @@ export class GroundedComposer extends GroundedCall {
   }
 
   async compose(request: ComposerRequest): Promise<GroundedCallResult> {
+    return this.withLifecycle('GroundedComposer.compose', () => this.doCompose(request));
+  }
+
+  private async doCompose(request: ComposerRequest): Promise<GroundedCallResult> {
     if (!request.instructions || request.instructions.trim().length === 0) {
       throw new Error('GroundedComposer: `instructions` must be a non-empty string.');
     }

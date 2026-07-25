@@ -6,9 +6,11 @@ const parseMock = vi.fn();
 
 vi.mock('openai', () => {
   return {
-    default: vi.fn().mockImplementation(function () { return {
-      beta: { chat: { completions: { parse: parseMock } } }
-    }; }),
+    default: vi.fn().mockImplementation(function () {
+      return {
+        beta: { chat: { completions: { parse: parseMock } } },
+      };
+    }),
   };
 });
 
@@ -290,5 +292,50 @@ describe('GroundedComposer - traceability (US3)', () => {
     expect(identityIndex).toBeGreaterThan(builtInIndex);
     expect(rulesIndex).toBeGreaterThan(identityIndex);
     expect(toneIndex).toBeGreaterThan(rulesIndex);
+  });
+});
+
+describe('GroundedComposer - lifecycle callbacks: successful call (008-structured-logging-hooks US1)', () => {
+  it('fires onCall and onResult with the GroundedComposer.compose operation label, always reporting usedFallback: false', async () => {
+    mockParsedResponse({
+      applied_rules: ['Ask for the protocol.'],
+      context_used: false,
+      context_excerpts: [],
+      reasoning: 'r',
+      final_message: 'Qual protocolo devo usar?',
+    });
+
+    const onCall = vi.fn();
+    const onResult = vi.fn();
+    const composer = new GroundedComposer({ onCall, onResult });
+    await composer.compose({ instructions: 'Ask for the protocol.' });
+
+    expect(onCall.mock.calls[0][0].operation).toBe('GroundedComposer.compose');
+    expect(onCall.mock.calls[0][0].callId).toBe(onResult.mock.calls[0][0].callId);
+    expect(onResult.mock.calls[0][0].usedFallback).toBe(false);
+  });
+});
+
+describe('GroundedComposer - lifecycle callbacks: failure classification (008-structured-logging-hooks US2)', () => {
+  it("reports errorType 'invalid-output' when the model output fails schema validation", async () => {
+    mockParsedResponse({ sufficient_context: true, reasoning: 'r' });
+    const onError = vi.fn();
+    const composer = new GroundedComposer({ onError });
+
+    await expect(
+      composer.compose({ instructions: 'Ask for the protocol.' })
+    ).rejects.toBeInstanceOf(InvalidModelOutputError);
+    expect(onError.mock.calls[0][0].errorType).toBe('invalid-output');
+  });
+
+  it("reports errorType 'unknown' for the empty-instructions usage error, without ever calling the model", async () => {
+    const onCall = vi.fn();
+    const onError = vi.fn();
+    const composer = new GroundedComposer({ onCall, onError });
+
+    await expect(composer.compose({ instructions: '' })).rejects.toThrow(/instructions/i);
+    expect(parseMock).not.toHaveBeenCalled();
+    expect(onCall).toHaveBeenCalledTimes(1);
+    expect(onError.mock.calls[0][0].errorType).toBe('unknown');
   });
 });

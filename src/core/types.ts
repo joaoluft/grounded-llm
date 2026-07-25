@@ -1,6 +1,7 @@
 import type OpenAI from 'openai';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import type { LLMProviderContract } from '../providers/types.js';
+import type { CallEvent, ResultEvent, ErrorEvent } from './lifecycle-callbacks.js';
 
 /**
  * Generic over the fallback shape so components with a non-string fallback (e.g.
@@ -58,6 +59,24 @@ export interface GroundedCallConfig<TFallback = string> {
    * built-in grounding instructions.
    */
   tone?: string;
+  /**
+   * Optional lifecycle callback fired once per call attempt, before the model is
+   * reached. Synchronous/fire-and-forget: never awaited, and an exception it throws
+   * is caught and discarded, never affecting the call's own result (008-structured-logging-hooks FR-002, FR-007).
+   */
+  onCall?: (event: CallEvent) => void;
+  /**
+   * Optional lifecycle callback fired once per call attempt, after it completes
+   * successfully. Synchronous/fire-and-forget, same isolation guarantee as `onCall`
+   * (008-structured-logging-hooks FR-003, FR-007).
+   */
+  onResult?: (event: ResultEvent) => void;
+  /**
+   * Optional lifecycle callback fired once per call attempt, after it fails.
+   * Synchronous/fire-and-forget, same isolation guarantee as `onCall`
+   * (008-structured-logging-hooks FR-004, FR-007).
+   */
+  onError?: (event: ErrorEvent) => void;
 }
 
 export interface GroundedCallResult {

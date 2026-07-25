@@ -51,6 +51,10 @@ export class GroundedGenerator extends GroundedCall {
   }
 
   async generate(request: GenerationRequest): Promise<GroundedCallResult> {
+    return this.withLifecycle('GroundedGenerator.generate', () => this.doGenerate(request));
+  }
+
+  private async doGenerate(request: GenerationRequest): Promise<GroundedCallResult> {
     if (!request.question || request.question.trim().length === 0) {
       throw new Error('GroundedGenerator: `question` must be a non-empty string.');
     }

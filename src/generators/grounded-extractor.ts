@@ -66,6 +66,10 @@ export class GroundedExtractor<Fields extends z.ZodRawShape> extends GroundedCal
   }
 
   async extract(request: ExtractionRequest): Promise<GroundedExtractionResult<Fields>> {
+    return this.withLifecycle('GroundedExtractor.extract', () => this.doExtract(request));
+  }
+
+  private async doExtract(request: ExtractionRequest): Promise<GroundedExtractionResult<Fields>> {
     if (!request.message || request.message.trim().length === 0) {
       return this.buildFallbackResult('Message was empty or blank.');
     }
