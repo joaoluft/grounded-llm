@@ -55,6 +55,18 @@ describe('GroundedGenerator result parity: standalone vs langchainModel (006-lan
 
     expect(langchainResult).toEqual(standaloneResult);
   });
+
+  it('leaves usage undefined in langchainModel mode even though standalone mode has none reported here (issue #6)', async () => {
+    const fakeModel = {
+      withStructuredOutput: vi.fn(() => ({ invoke: async () => EQUIVALENT_OUTPUT })),
+    } as any;
+    const langchainResult = await new GroundedGenerator({
+      fallbackValue: "I don't know.",
+      langchainModel: fakeModel,
+    }).generate(REQUEST);
+
+    expect(langchainResult.usage).toBeUndefined();
+  });
 });
 
 describe('GroundedGenerator - lifecycle callbacks fire identically under langchainModel (008-structured-logging-hooks FR-008)', () => {
@@ -220,6 +232,93 @@ describe('GroundedGenerator - fallback when context is insufficient (US2)', () =
 
     expect(result.usedFallback).toBe(true);
     expect(result.finalAnswer).toBe("I don't know.");
+  });
+});
+
+describe('GroundedGenerator - token usage metadata (issue #6)', () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env['OPENAI_API_KEY'] = 'test-key';
+  });
+
+  it('attaches provider-reported usage to the result on the success path', async () => {
+    parseMock.mockResolvedValueOnce({
+      choices: [
+        {
+          message: {
+            refusal: null,
+            parsed: {
+              extracted_facts: ['Paris is the capital of France.'],
+              sufficient_context: true,
+              reasoning: 'r',
+              final_answer: 'Paris is the capital of France.',
+            },
+          },
+        },
+      ],
+      usage: { prompt_tokens: 42, completion_tokens: 8, total_tokens: 50 },
+    });
+
+    const generator = new GroundedGenerator({ fallbackValue: "I don't know." });
+    const result = await generator.generate({
+      context: 'Paris is the capital of France.',
+      question: 'What is the capital of France?',
+    });
+
+    expect(result.usage).toEqual({ promptTokens: 42, completionTokens: 8, totalTokens: 50 });
+  });
+
+  it('attaches usage to a fallback result when the model was actually called', async () => {
+    parseMock.mockResolvedValueOnce({
+      choices: [
+        {
+          message: {
+            refusal: null,
+            parsed: {
+              extracted_facts: [],
+              sufficient_context: false,
+              reasoning: 'No relevant information found.',
+              final_answer: '',
+            },
+          },
+        },
+      ],
+      usage: { prompt_tokens: 20, completion_tokens: 3, total_tokens: 23 },
+    });
+
+    const generator = new GroundedGenerator({ fallbackValue: "I don't know." });
+    const result = await generator.generate({
+      context: 'Completely unrelated text.',
+      question: 'What is the capital of France?',
+    });
+
+    expect(result.usedFallback).toBe(true);
+    expect(result.usage).toEqual({ promptTokens: 20, completionTokens: 3, totalTokens: 23 });
+  });
+
+  it('leaves usage undefined when the short-circuit fallback never calls the model', async () => {
+    const generator = new GroundedGenerator({ fallbackValue: "I don't know." });
+    const result = await generator.generate({
+      context: '   ',
+      question: 'What is the capital of France?',
+    });
+
+    expect(result.usage).toBeUndefined();
+    expect(parseMock).not.toHaveBeenCalled();
+  });
+
+  it('leaves usage undefined when the provider does not report it', async () => {
+    mockParsedResponse({
+      extracted_facts: ['fact'],
+      sufficient_context: true,
+      reasoning: 'r',
+      final_answer: 'a',
+    });
+
+    const generator = new GroundedGenerator({ fallbackValue: "I don't know." });
+    const result = await generator.generate({ context: 'fact', question: 'q?' });
+
+    expect(result.usage).toBeUndefined();
   });
 });
 

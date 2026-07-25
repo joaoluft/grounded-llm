@@ -9,6 +9,7 @@ export type ExtractionData<Fields extends z.ZodRawShape> = {
 };
 
 import type { GroundedCallConfig } from '../core/types.js';
+import type { ProviderUsage } from '../providers/types.js';
 
 export interface GroundedExtractionConfig<Fields extends z.ZodRawShape> extends GroundedCallConfig<
   ExtractionData<Fields>
@@ -25,6 +26,11 @@ export interface GroundedExtractionResult<Fields extends z.ZodRawShape> {
   data: ExtractionData<Fields>;
   usedFallback: boolean;
   reasoning: string;
+  /**
+   * Token usage for this call, when reported by the underlying provider. Absent
+   * (not zeroed) when unavailable — e.g. always in `langchainModel` mode (issue #6).
+   */
+  usage?: ProviderUsage;
 }
 
 export interface ExtractionRequest {
@@ -78,7 +84,7 @@ export class GroundedExtractor<Fields extends z.ZodRawShape> extends GroundedCal
     const systemPrompt = this.buildSystemPrompt(SYSTEM_PROMPT_PREFIX);
     this.assertContextWithinLimit(systemPrompt + userPrompt);
 
-    const rawOutput = await this.callModel({
+    const { data: rawOutput, usage } = await this.callModel({
       model: this.model,
       temperature: this.temperature,
       response_format: this.responseFormat,
@@ -113,10 +119,10 @@ export class GroundedExtractor<Fields extends z.ZodRawShape> extends GroundedCal
 
     const shouldFallback = hasFallback && (allNull || (someNull && this.strict));
     if (shouldFallback) {
-      return this.buildFallbackResult(reasoning);
+      return this.buildFallbackResult(reasoning, usage);
     }
 
-    return { data, usedFallback: false, reasoning };
+    return { data, usedFallback: false, reasoning, usage };
   }
 
   private buildEmptyData(): ExtractionData<Fields> {
@@ -124,10 +130,13 @@ export class GroundedExtractor<Fields extends z.ZodRawShape> extends GroundedCal
     return Object.fromEntries(fieldKeys.map((key) => [key, null])) as ExtractionData<Fields>;
   }
 
-  private buildFallbackResult(reasoning: string): GroundedExtractionResult<Fields> {
+  private buildFallbackResult(
+    reasoning: string,
+    usage?: ProviderUsage
+  ): GroundedExtractionResult<Fields> {
     if (this.fallbackValue !== undefined) {
-      return { data: this.fallbackValue, usedFallback: true, reasoning };
+      return { data: this.fallbackValue, usedFallback: true, reasoning, usage };
     }
-    return { data: this.buildEmptyData(), usedFallback: false, reasoning };
+    return { data: this.buildEmptyData(), usedFallback: false, reasoning, usage };
   }
 }

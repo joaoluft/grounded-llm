@@ -3,7 +3,12 @@ import { randomUUID } from 'node:crypto';
 import type { GroundedCallConfig } from './types.js';
 import { ContextTooLargeError, InvalidModelOutputError, ModelUnavailableError } from './errors.js';
 import { estimateTokens, getMaxContextTokens } from './context-window.js';
-import type { LLMProviderContract, ProviderRequest, ProviderResponse } from '../providers/types.js';
+import type {
+  LLMProviderContract,
+  ProviderRequest,
+  ProviderResponse,
+  ProviderUsage,
+} from '../providers/types.js';
 import { providerRegistry } from '../providers/registry.js';
 import { resolveProviderId } from '../providers/config.js';
 import type { ModelClient } from './model-client.js';
@@ -177,9 +182,12 @@ export abstract class GroundedCall<TFallback = string> {
     }
   }
 
-  protected async callModel<Params extends Record<string, any>>(params: Params): Promise<any> {
+  protected async callModel<Params extends Record<string, any>>(
+    params: Params
+  ): Promise<{ data: any; usage?: ProviderUsage }> {
     if (this.modelClient) {
-      return this.modelClient.parse(params as any);
+      const data = await this.modelClient.parse(params as any);
+      return { data, usage: undefined };
     }
 
     const messages = (params.messages as Array<{ role: string; content: string }>) || [];
@@ -197,7 +205,7 @@ export abstract class GroundedCall<TFallback = string> {
 
     try {
       const response: ProviderResponse<any> = await this.providerAdapter!.completeStructured(req);
-      return response.data;
+      return { data: response.data, usage: response.usage };
     } catch (error) {
       if (
         error instanceof InvalidModelOutputError ||

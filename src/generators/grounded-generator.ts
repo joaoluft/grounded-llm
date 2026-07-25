@@ -69,7 +69,7 @@ export class GroundedGenerator extends GroundedCall {
     const systemPrompt = this.buildSystemPrompt(buildSystemPromptBase(hasFallback));
     this.assertContextWithinLimit(systemPrompt + userPrompt);
 
-    const rawOutput = await this.callModel({
+    const { data: rawOutput, usage } = await this.callModel({
       model: this.model,
       temperature: this.temperature,
       response_format: zodResponseFormat(groundedGenerationSchema, 'grounded_generation'),
@@ -92,7 +92,7 @@ export class GroundedGenerator extends GroundedCall {
     const output = parseResult.data;
 
     if ((!output.sufficient_context || output.extracted_facts.length === 0) && hasFallback) {
-      return this.buildFallbackResult(output.reasoning, output.extracted_facts);
+      return this.buildFallbackResult(output.reasoning, output.extracted_facts, usage);
     }
 
     return {
@@ -100,18 +100,21 @@ export class GroundedGenerator extends GroundedCall {
       usedFallback: false,
       extractedFacts: output.extracted_facts,
       reasoning: output.reasoning,
+      usage,
     };
   }
 
   private buildFallbackResult(
     reasoning: string,
-    extractedFacts: string[] = []
+    extractedFacts: string[] = [],
+    usage?: GroundedCallResult['usage']
   ): GroundedCallResult {
     return {
       finalAnswer: this.fallbackValue as string,
       usedFallback: true,
       extractedFacts,
       reasoning,
+      usage,
     };
   }
 

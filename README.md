@@ -403,6 +403,50 @@ const generator = new GroundedGenerator({
 });
 ```
 
+### Token usage & cost metadata
+
+Every generator's result (`GroundedGenerator`, `GroundedEnricher`, `GroundedComposer`, and
+`GroundedExtractor`'s `GroundedExtractionResult`) carries an optional `usage` field with
+token counts reported by the underlying provider:
+
+```ts
+interface ProviderUsage {
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+}
+```
+
+- In **standalone mode** (OpenAI, Anthropic, Google), `usage` is populated from the
+  provider's own reported token counts whenever the provider includes them in its
+  response.
+- In **`langchainModel` mode**, `usage` is always `undefined` — the wrapped LangChain
+  chat model's raw usage metadata isn't extracted today, so don't rely on this field
+  being present when using that mode.
+- `usage` is only ever absent or fully reported — it is never a fabricated/zeroed
+  object, so you can safely treat its absence as "unknown," not "zero tokens used."
+
+Logging and aggregating usage across calls:
+
+```ts
+import { GroundedGenerator } from 'grounded-llm';
+
+const generator = new GroundedGenerator({ fallbackValue: "I don't know." });
+
+const totals = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+
+for (const request of requests) {
+  const result = await generator.generate(request);
+  console.log(`usage for this call:`, result.usage);
+
+  totals.promptTokens += result.usage?.promptTokens ?? 0;
+  totals.completionTokens += result.usage?.completionTokens ?? 0;
+  totals.totalTokens += result.usage?.totalTokens ?? 0;
+}
+
+console.log('total usage across all calls:', totals);
+```
+
 ### Releasing
 
 CI (`.github/workflows/ci.yml`) runs type-check, tests, and build on every push/PR to
@@ -759,6 +803,51 @@ const generator = new GroundedGenerator({
     callErrors.labels(operation, errorType).inc();
   },
 });
+```
+
+### Uso de tokens e metadados de custo
+
+O resultado de cada generator (`GroundedGenerator`, `GroundedEnricher`, `GroundedComposer`,
+e o `GroundedExtractionResult` do `GroundedExtractor`) carrega um campo opcional `usage`
+com as contagens de tokens reportadas pelo provider subjacente:
+
+```ts
+interface ProviderUsage {
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+}
+```
+
+- No **modo standalone** (OpenAI, Anthropic, Google), `usage` é preenchido a partir das
+  contagens de tokens que o próprio provider reporta, sempre que essa informação vem na
+  resposta.
+- No **modo `langchainModel`**, `usage` é sempre `undefined` — os metadados brutos de uso
+  do chat model do LangChain não são extraídos hoje, então não conte com esse campo
+  estando presente nesse modo.
+- `usage` só existe como ausente ou totalmente preenchido — nunca é um objeto zerado
+  artificialmente, então sua ausência pode ser tratada com segurança como "desconhecido",
+  não "zero tokens usados".
+
+Logging e agregação de uso entre chamadas:
+
+```ts
+import { GroundedGenerator } from 'grounded-llm';
+
+const generator = new GroundedGenerator({ fallbackValue: 'Não sei.' });
+
+const totais = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+
+for (const request of requests) {
+  const result = await generator.generate(request);
+  console.log(`uso desta chamada:`, result.usage);
+
+  totais.promptTokens += result.usage?.promptTokens ?? 0;
+  totais.completionTokens += result.usage?.completionTokens ?? 0;
+  totais.totalTokens += result.usage?.totalTokens ?? 0;
+}
+
+console.log('uso total entre todas as chamadas:', totais);
 ```
 
 ### Releases

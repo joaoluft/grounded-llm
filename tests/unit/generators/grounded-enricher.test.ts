@@ -151,6 +151,79 @@ describe('GroundedEnricher - empty/blank context (US1)', () => {
   });
 });
 
+describe('GroundedEnricher - token usage metadata (issue #6)', () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env['OPENAI_API_KEY'] = 'test-key';
+  });
+
+  it('attaches provider-reported usage to the result on the success path', async () => {
+    parseMock.mockResolvedValueOnce({
+      choices: [
+        {
+          message: {
+            refusal: null,
+            parsed: {
+              extracted_facts: ['Ships in 3 business days.'],
+              sufficient_context: true,
+              reasoning: 'r',
+              enriched_text: 'Thanks for your order! Ships in 3 business days.',
+            },
+          },
+        },
+      ],
+      usage: { prompt_tokens: 30, completion_tokens: 6, total_tokens: 36 },
+    });
+
+    const enricher = new GroundedEnricher({ fallbackValue: 'N/A' });
+    const result = await enricher.generate({
+      baseContent: 'Thanks for your order!',
+      context: 'Ships in 3 business days.',
+    });
+
+    expect(result.usage).toEqual({ promptTokens: 30, completionTokens: 6, totalTokens: 36 });
+  });
+
+  it('attaches usage to an unchanged (fallback) result when the model was actually called', async () => {
+    parseMock.mockResolvedValueOnce({
+      choices: [
+        {
+          message: {
+            refusal: null,
+            parsed: {
+              extracted_facts: [],
+              sufficient_context: false,
+              reasoning: 'No relevant information found.',
+              enriched_text: '',
+            },
+          },
+        },
+      ],
+      usage: { prompt_tokens: 12, completion_tokens: 2, total_tokens: 14 },
+    });
+
+    const enricher = new GroundedEnricher({ fallbackValue: 'N/A' });
+    const result = await enricher.generate({
+      baseContent: 'Thanks for your order!',
+      context: 'Completely unrelated text.',
+    });
+
+    expect(result.usedFallback).toBe(true);
+    expect(result.usage).toEqual({ promptTokens: 12, completionTokens: 2, totalTokens: 14 });
+  });
+
+  it('leaves usage undefined when the short-circuit fallback never calls the model', async () => {
+    const enricher = new GroundedEnricher({ fallbackValue: 'N/A' });
+    const result = await enricher.generate({
+      baseContent: 'Thanks for your order!',
+      context: '   ',
+    });
+
+    expect(result.usage).toBeUndefined();
+    expect(parseMock).not.toHaveBeenCalled();
+  });
+});
+
 describe('GroundedEnricher - empty/blank baseContent is invalid usage (US1, FR-110)', () => {
   beforeEach(() => {
     parseMock.mockReset();

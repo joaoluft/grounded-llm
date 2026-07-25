@@ -176,6 +176,55 @@ describe('GroundedExtractor - no extractable information (US2, FR-206)', () => {
   });
 });
 
+describe('GroundedExtractor - token usage metadata (issue #6)', () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env['OPENAI_API_KEY'] = 'test-key';
+  });
+
+  it('attaches provider-reported usage to the result on the success path', async () => {
+    parseMock.mockResolvedValueOnce({
+      choices: [
+        {
+          message: {
+            refusal: null,
+            parsed: { name: 'Ada Lovelace', email: 'ada@example.com', reasoning: 'both found' },
+          },
+        },
+      ],
+      usage: { prompt_tokens: 15, completion_tokens: 4, total_tokens: 19 },
+    });
+
+    const extractor = new GroundedExtractor({ fields, fallbackValue });
+    const result = await extractor.extract({ message: "I'm Ada Lovelace, ada@example.com" });
+
+    expect(result.usage).toEqual({ promptTokens: 15, completionTokens: 4, totalTokens: 19 });
+  });
+
+  it('attaches usage to a fallback result when the model was actually called', async () => {
+    parseMock.mockResolvedValueOnce({
+      choices: [
+        { message: { refusal: null, parsed: { name: null, email: null, reasoning: 'nothing' } } },
+      ],
+      usage: { prompt_tokens: 9, completion_tokens: 1, total_tokens: 10 },
+    });
+
+    const extractor = new GroundedExtractor({ fields, fallbackValue });
+    const result = await extractor.extract({ message: 'The weather is nice today.' });
+
+    expect(result.usedFallback).toBe(true);
+    expect(result.usage).toEqual({ promptTokens: 9, completionTokens: 1, totalTokens: 10 });
+  });
+
+  it('leaves usage undefined when the short-circuit fallback never calls the model', async () => {
+    const extractor = new GroundedExtractor({ fields, fallbackValue });
+    const result = await extractor.extract({ message: '   ' });
+
+    expect(result.usage).toBeUndefined();
+    expect(parseMock).not.toHaveBeenCalled();
+  });
+});
+
 describe('GroundedExtractor - tone composition (004-behavioral-tone-field US2)', () => {
   beforeEach(() => {
     parseMock.mockReset();

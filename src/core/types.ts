@@ -1,6 +1,6 @@
 import type OpenAI from 'openai';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import type { LLMProviderContract } from '../providers/types.js';
+import type { LLMProviderContract, ProviderUsage } from '../providers/types.js';
 import type { CallEvent, ResultEvent, ErrorEvent } from './lifecycle-callbacks.js';
 
 /**
@@ -84,4 +84,10 @@ export interface GroundedCallResult {
   usedFallback: boolean;
   extractedFacts: string[];
   reasoning: string;
+  /**
+   * Token usage for this call, when reported by the underlying provider. Absent
+   * (not zeroed) when unavailable — e.g. always in `langchainModel` mode, since
+   * `LangChainModelClient` doesn't request raw usage metadata (issue #6).
+   */
+  usage?: ProviderUsage;
 }

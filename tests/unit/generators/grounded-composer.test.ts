@@ -62,6 +62,48 @@ describe('GroundedComposer - happy path with instructions only (US1)', () => {
   });
 });
 
+describe('GroundedComposer - token usage metadata (issue #6)', () => {
+  it('attaches provider-reported usage to the result', async () => {
+    parseMock.mockResolvedValueOnce({
+      choices: [
+        {
+          message: {
+            refusal: null,
+            parsed: {
+              applied_rules: ['Ask for the protocol.'],
+              context_used: false,
+              context_excerpts: [],
+              reasoning: 'r',
+              final_message: 'Entendi, e qual protocolo devo usar?',
+            },
+          },
+        },
+      ],
+      usage: { prompt_tokens: 18, completion_tokens: 5, total_tokens: 23 },
+    });
+
+    const composer = new GroundedComposer({});
+    const result = await composer.compose({ instructions: 'Ask for the protocol.' });
+
+    expect(result.usage).toEqual({ promptTokens: 18, completionTokens: 5, totalTokens: 23 });
+  });
+
+  it('leaves usage undefined when the provider does not report it', async () => {
+    mockParsedResponse({
+      applied_rules: ['rule'],
+      context_used: false,
+      context_excerpts: [],
+      reasoning: 'r',
+      final_message: 'a',
+    });
+
+    const composer = new GroundedComposer({});
+    const result = await composer.compose({ instructions: 'rule' });
+
+    expect(result.usage).toBeUndefined();
+  });
+});
+
 describe('GroundedComposer - never abstains (US1, FR-705)', () => {
   it.each([
     { applied_rules: ['r1'], final_message: 'm1' },
