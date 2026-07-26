@@ -2,6 +2,7 @@ import { zodResponseFormat } from 'openai/helpers/zod.mjs';
 import { GroundedCall } from '../core/grounded-call.js';
 import type { GroundedCallConfig, GroundedCallResult } from '../core/types.js';
 import { InvalidModelOutputError } from '../core/errors.js';
+import { deriveCacheKey } from '../core/result-cache.js';
 import { groundedCompositionSchema } from './grounded-composer.schema.js';
 
 export interface ComposerRequest {
@@ -39,7 +40,16 @@ export class GroundedComposer extends GroundedCall {
   }
 
   async compose(request: ComposerRequest): Promise<GroundedCallResult> {
-    return this.withLifecycle('GroundedComposer.compose', () => this.doCompose(request));
+    const cacheKey = deriveCacheKey('GroundedComposer.compose', {
+      instructions: request.instructions,
+      context: request.context,
+      identity: this.identity,
+      rules: this.rules,
+      tone: this.tone,
+      model: this.model,
+      temperature: this.temperature,
+    });
+    return this.withLifecycle('GroundedComposer.compose', () => this.doCompose(request), cacheKey);
   }
 
   private async doCompose(request: ComposerRequest): Promise<GroundedCallResult> {

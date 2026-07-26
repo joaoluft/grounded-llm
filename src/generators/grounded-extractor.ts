@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { GroundedCall } from '../core/grounded-call.js';
 import { InvalidModelOutputError } from '../core/errors.js';
+import { deriveCacheKey } from '../core/result-cache.js';
 import { buildExtractionSchema } from './grounded-extractor.schema.js';
 
 /** Maps a developer-provided fields shape to its extracted-value shape (each field nullable). */
@@ -72,7 +73,31 @@ export class GroundedExtractor<Fields extends z.ZodRawShape> extends GroundedCal
   }
 
   async extract(request: ExtractionRequest): Promise<GroundedExtractionResult<Fields>> {
-    return this.withLifecycle('GroundedExtractor.extract', () => this.doExtract(request));
+    const cacheKey = deriveCacheKey('GroundedExtractor.extract', {
+      message: request.message,
+      identity: this.identity,
+      rules: this.rules,
+      tone: this.tone,
+      model: this.model,
+      temperature: this.temperature,
+      fields: this.fieldsFingerprint(),
+      strict: this.strict,
+      fallbackValue: this.fallbackValue,
+    });
+    return this.withLifecycle('GroundedExtractor.extract', () => this.doExtract(request), cacheKey);
+  }
+
+  /**
+   * Zod schemas aren't JSON-serializable (functions, circular refs), so the cache key
+   * uses a lightweight fingerprint — each field name paired with its Zod type name —
+   * instead of the raw `fields` shape (009-pluggable-result-cache FR-003).
+   */
+  private fieldsFingerprint(): string {
+    return (Object.keys(this.fields) as (keyof Fields)[])
+      .map(String)
+      .sort()
+      .map((key) => `${key}:${(this.fields[key as keyof Fields] as z.ZodTypeAny)._def.typeName}`)
+      .join(',');
   }
 
   private async doExtract(request: ExtractionRequest): Promise<GroundedExtractionResult<Fields>> {

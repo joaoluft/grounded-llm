@@ -3,6 +3,7 @@ import { GroundedCall } from '../core/grounded-call.js';
 import type { GroundedCallConfig, GroundedCallResult } from '../core/types.js';
 import type { ProviderUsage } from '../providers/types.js';
 import { InvalidModelOutputError } from '../core/errors.js';
+import { deriveCacheKey } from '../core/result-cache.js';
 import { groundedEnrichmentSchema } from './grounded-enricher.schema.js';
 
 export interface EnrichmentRequest {
@@ -37,7 +38,20 @@ export class GroundedEnricher extends GroundedCall {
   }
 
   async generate(request: EnrichmentRequest): Promise<GroundedCallResult> {
-    return this.withLifecycle('GroundedEnricher.generate', () => this.doGenerate(request));
+    const cacheKey = deriveCacheKey('GroundedEnricher.generate', {
+      baseContent: request.baseContent,
+      context: request.context,
+      identity: this.identity,
+      rules: this.rules,
+      tone: this.tone,
+      model: this.model,
+      temperature: this.temperature,
+    });
+    return this.withLifecycle(
+      'GroundedEnricher.generate',
+      () => this.doGenerate(request),
+      cacheKey
+    );
   }
 
   private async doGenerate(request: EnrichmentRequest): Promise<GroundedCallResult> {

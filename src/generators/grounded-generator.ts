@@ -3,6 +3,7 @@ import { GroundedCall } from '../core/grounded-call.js';
 import type { GroundedCallConfig, GroundedCallResult } from '../core/types.js';
 import type { ProviderUsage } from '../providers/types.js';
 import { InvalidModelOutputError } from '../core/errors.js';
+import { deriveCacheKey } from '../core/result-cache.js';
 import { groundedGenerationSchema } from './schema.js';
 
 export interface GenerationRequest {
@@ -52,7 +53,21 @@ export class GroundedGenerator extends GroundedCall {
   }
 
   async generate(request: GenerationRequest): Promise<GroundedCallResult> {
-    return this.withLifecycle('GroundedGenerator.generate', () => this.doGenerate(request));
+    const cacheKey = deriveCacheKey('GroundedGenerator.generate', {
+      context: request.context,
+      question: request.question,
+      identity: this.identity,
+      rules: this.rules,
+      tone: this.tone,
+      model: this.model,
+      temperature: this.temperature,
+      fallbackValue: this.fallbackValue,
+    });
+    return this.withLifecycle(
+      'GroundedGenerator.generate',
+      () => this.doGenerate(request),
+      cacheKey
+    );
   }
 
   private async doGenerate(request: GenerationRequest): Promise<GroundedCallResult> {

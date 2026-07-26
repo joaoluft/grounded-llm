@@ -667,3 +667,183 @@ describe('GroundedGenerator - lifecycle callbacks: isolation and edge cases (008
     expect(onResult.mock.calls[0][0].usedFallback).toBe(true);
   });
 });
+
+describe('GroundedGenerator - pluggable result cache (009-pluggable-result-cache, US1)', () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env['OPENAI_API_KEY'] = 'test-key';
+  });
+
+  function mapCache() {
+    const store = new Map<string, unknown>();
+    return {
+      store,
+      get: (key: string) => store.get(key),
+      set: (key: string, value: unknown) => {
+        store.set(key, value);
+      },
+    };
+  }
+
+  const REQUEST = {
+    context: 'Paris is the capital of France.',
+    question: 'What is the capital of France?',
+  };
+  const OUTPUT = {
+    extracted_facts: ['Paris is the capital of France.'],
+    sufficient_context: true,
+    reasoning: 'The context directly states the capital.',
+    final_answer: 'Paris is the capital of France.',
+  };
+
+  it('serves an identical repeated request from the cache without a second model call', async () => {
+    mockParsedResponse(OUTPUT);
+    const cache = mapCache();
+    const generator = new GroundedGenerator({ fallbackValue: "I don't know.", cache });
+
+    const first = await generator.generate(REQUEST);
+    const second = await generator.generate(REQUEST);
+
+    expect(second).toEqual(first);
+    expect(parseMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('never collides distinct requests that differ only in question or context (SC-004)', async () => {
+    mockParsedResponse(OUTPUT);
+    mockParsedResponse({ ...OUTPUT, final_answer: 'Berlin is the capital of Germany.' });
+    const cache = mapCache();
+    const generator = new GroundedGenerator({ fallbackValue: "I don't know.", cache });
+
+    await generator.generate(REQUEST);
+    await generator.generate({ ...REQUEST, question: 'What is the capital of Germany?' });
+
+    expect(parseMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('never collides two instances that differ only in fallbackValue sharing the same cache', async () => {
+    mockParsedResponse(OUTPUT);
+    mockParsedResponse(OUTPUT);
+    const cache = mapCache();
+
+    const withFallback = new GroundedGenerator({ fallbackValue: "I don't know.", cache });
+    const withoutFallback = new GroundedGenerator({ cache });
+
+    await withFallback.generate(REQUEST);
+    await withoutFallback.generate(REQUEST);
+
+    expect(parseMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('caches a fallback result too, so a repeated known-insufficient-context request also skips the model', async () => {
+    mockParsedResponse({
+      extracted_facts: [],
+      sufficient_context: false,
+      reasoning: 'No relevant excerpt.',
+      final_answer: '',
+    });
+    const cache = mapCache();
+    const generator = new GroundedGenerator({ fallbackValue: "I don't know.", cache });
+
+    const insufficientRequest = {
+      context: 'Unrelated text.',
+      question: 'What is the capital of France?',
+    };
+    const first = await generator.generate(insufficientRequest);
+    const second = await generator.generate(insufficientRequest);
+
+    expect(first.usedFallback).toBe(true);
+    expect(second).toEqual(first);
+    expect(parseMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('GroundedGenerator - no cache configured (009-pluggable-result-cache, US2)', () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env['OPENAI_API_KEY'] = 'test-key';
+  });
+
+  it('runs the pipeline for every call when no cache is configured, even for identical requests', async () => {
+    const OUTPUT = {
+      extracted_facts: ['Paris is the capital of France.'],
+      sufficient_context: true,
+      reasoning: 'The context directly states the capital.',
+      final_answer: 'Paris is the capital of France.',
+    };
+    mockParsedResponse(OUTPUT);
+    mockParsedResponse(OUTPUT);
+    const generator = new GroundedGenerator({ fallbackValue: "I don't know." });
+
+    const request = {
+      context: 'Paris is the capital of France.',
+      question: 'What is the capital of France?',
+    };
+    await generator.generate(request);
+    await generator.generate(request);
+
+    expect(parseMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('GroundedGenerator - cache backend flexibility and failure isolation (009-pluggable-result-cache, US3)', () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env['OPENAI_API_KEY'] = 'test-key';
+  });
+
+  const REQUEST = {
+    context: 'Paris is the capital of France.',
+    question: 'What is the capital of France?',
+  };
+  const OUTPUT = {
+    extracted_facts: ['Paris is the capital of France.'],
+    sufficient_context: true,
+    reasoning: 'The context directly states the capital.',
+    final_answer: 'Paris is the capital of France.',
+  };
+
+  it('works identically with a Promise-returning (async) cache backend', async () => {
+    mockParsedResponse(OUTPUT);
+    const store = new Map<string, unknown>();
+    const cache = {
+      get: async (key: string) => store.get(key),
+      set: async (key: string, value: unknown) => {
+        store.set(key, value);
+      },
+    };
+    const generator = new GroundedGenerator({ fallbackValue: "I don't know.", cache });
+
+    await generator.generate(REQUEST);
+    await generator.generate(REQUEST);
+
+    expect(parseMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('resolves normally with a real result when the cache backend throws synchronously (FR-007, SC-005)', async () => {
+    mockParsedResponse(OUTPUT);
+    const cache = {
+      get: () => {
+        throw new Error('store unreachable');
+      },
+      set: () => {
+        throw new Error('store unreachable');
+      },
+    };
+    const generator = new GroundedGenerator({ fallbackValue: "I don't know.", cache });
+
+    const result = await generator.generate(REQUEST);
+    expect(result.finalAnswer).toBe('Paris is the capital of France.');
+  });
+
+  it('resolves normally with a real result when the cache backend rejects asynchronously (FR-007, SC-005)', async () => {
+    mockParsedResponse(OUTPUT);
+    const cache = {
+      get: () => Promise.reject(new Error('store unreachable')),
+      set: () => Promise.reject(new Error('store unreachable')),
+    };
+    const generator = new GroundedGenerator({ fallbackValue: "I don't know.", cache });
+
+    const result = await generator.generate(REQUEST);
+    expect(result.finalAnswer).toBe('Paris is the capital of France.');
+  });
+});

@@ -14,6 +14,7 @@ export type {
   ResultEvent,
   ErrorEvent,
 } from './core/lifecycle-callbacks.js';
+export type { ResultCache } from './core/result-cache.js';
 
 export { GroundedGenerator } from './generators/grounded-generator.js';
 export type { GenerationRequest } from './generators/grounded-generator.js';

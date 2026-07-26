@@ -381,3 +381,59 @@ describe('GroundedComposer - lifecycle callbacks: failure classification (008-st
     expect(onError.mock.calls[0][0].errorType).toBe('unknown');
   });
 });
+
+describe('GroundedComposer - pluggable result cache (009-pluggable-result-cache, US1)', () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env['OPENAI_API_KEY'] = 'test-key';
+  });
+
+  it('serves an identical repeated request from the cache without a second model call', async () => {
+    mockParsedResponse({
+      applied_rules: ['rule'],
+      context_used: false,
+      context_excerpts: [],
+      reasoning: 'r',
+      final_message: 'a',
+    });
+    const store = new Map<string, unknown>();
+    const cache = {
+      get: (k: string) => store.get(k),
+      set: (k: string, v: unknown) => void store.set(k, v),
+    };
+    const composer = new GroundedComposer({ cache });
+
+    const request = { instructions: 'Say hello.' };
+    const first = await composer.compose(request);
+    const second = await composer.compose(request);
+
+    expect(second).toEqual(first);
+    expect(parseMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('GroundedComposer - no cache configured (009-pluggable-result-cache, US2)', () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env['OPENAI_API_KEY'] = 'test-key';
+  });
+
+  it('runs the pipeline for every call when no cache is configured, even for identical requests', async () => {
+    const OUTPUT = {
+      applied_rules: ['rule'],
+      context_used: false,
+      context_excerpts: [],
+      reasoning: 'r',
+      final_message: 'a',
+    };
+    mockParsedResponse(OUTPUT);
+    mockParsedResponse(OUTPUT);
+    const composer = new GroundedComposer({});
+
+    const request = { instructions: 'Say hello.' };
+    await composer.compose(request);
+    await composer.compose(request);
+
+    expect(parseMock).toHaveBeenCalledTimes(2);
+  });
+});

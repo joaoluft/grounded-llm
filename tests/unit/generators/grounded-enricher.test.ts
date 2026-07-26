@@ -383,3 +383,32 @@ describe('GroundedEnricher - lifecycle callback isolation (008-structured-loggin
     expect(result.finalAnswer).toBe('Thanks for your order! Ships in 3 business days.');
   });
 });
+
+describe('GroundedEnricher - pluggable result cache (009-pluggable-result-cache, US1)', () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env['OPENAI_API_KEY'] = 'test-key';
+  });
+
+  it('serves an identical repeated request from the cache without a second model call', async () => {
+    mockParsedResponse({
+      extracted_facts: ['Ships in 3 business days.'],
+      sufficient_context: true,
+      reasoning: 'The context adds shipping time.',
+      enriched_text: 'Thanks for your order! Ships in 3 business days.',
+    });
+    const store = new Map<string, unknown>();
+    const cache = {
+      get: (k: string) => store.get(k),
+      set: (k: string, v: unknown) => void store.set(k, v),
+    };
+    const enricher = new GroundedEnricher({ cache });
+
+    const request = { baseContent: 'Thanks for your order!', context: 'Ships in 3 business days.' };
+    const first = await enricher.generate(request);
+    const second = await enricher.generate(request);
+
+    expect(second).toEqual(first);
+    expect(parseMock).toHaveBeenCalledTimes(1);
+  });
+});
