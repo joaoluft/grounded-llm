@@ -506,6 +506,11 @@ The release workflow verifies the tag matches `package.json`'s version, then run
 same build/test steps before publishing with npm provenance. Requires an `NPM_TOKEN`
 secret (an npm Automation token) configured in the repository settings.
 
+### Contributing
+
+See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for local environment setup and
+collaboration standards (branching, commit messages, PR checklist).
+
 ---
 
 ## Português
@@ -953,3 +958,8 @@ git push --follow-tags
 O workflow de release confere se a tag bate com a versão do `package.json`, roda o
 mesmo build/test novamente, e então publica com npm provenance. Requer um secret
 `NPM_TOKEN` (token de automação do npm) configurado nas configurações do repositório.
+
+### Contribuindo
+
+Veja [`CONTRIBUTING.md`](./CONTRIBUTING.md) (em inglês) para configuração do ambiente
+local e padrões de colaboração (branches, mensagens de commit, checklist de PR).
