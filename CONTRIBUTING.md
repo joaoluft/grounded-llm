@@ -34,7 +34,8 @@ npm run test:watch    # vitest in watch mode
 npm run lint:fix      # auto-fix lint errors
 npm run format        # format with Prettier
 npm run format:check  # check formatting without writing
-npm run quality       # lint + format:check + test + build (same gate as CI)
+npm run quality       # lint + format:check + test + build (broader than CI's gate,
+                       # which runs type-check + test + build but not lint/format:check)
 ```
 
 For details on the ESLint/Prettier setup itself (rules, ignored paths, editor config),
