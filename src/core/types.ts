@@ -2,6 +2,7 @@ import type OpenAI from 'openai';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import type { LLMProviderContract, ProviderUsage } from '../providers/types.js';
 import type { CallEvent, ResultEvent, ErrorEvent } from './lifecycle-callbacks.js';
+import type { ResultCache } from './result-cache.js';
 
 /**
  * Generic over the fallback shape so components with a non-string fallback (e.g.
@@ -77,6 +78,15 @@ export interface GroundedCallConfig<TFallback = string> {
    * (008-structured-logging-hooks FR-004, FR-007).
    */
   onError?: (event: ErrorEvent) => void;
+  /**
+   * Optional pluggable result cache. When configured, an identical repeated call
+   * (same request content and output-affecting config) returns the cached result
+   * without running the pipeline or contacting the model provider. The library is
+   * storage-agnostic — bring your own in-memory Map, Redis client, etc — and is not
+   * responsible for invalidation/expiry; that is the caller's policy to implement
+   * (009-pluggable-result-cache FR-001..FR-008).
+   */
+  cache?: ResultCache;
 }
 
 export interface GroundedCallResult {

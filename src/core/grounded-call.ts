@@ -15,6 +15,7 @@ import type { ModelClient } from './model-client.js';
 import { LangChainModelClient } from './langchain-model-client.js';
 import { classifyOperationalError } from './lifecycle-callbacks.js';
 import type { CallEvent, ResultEvent, ErrorEvent } from './lifecycle-callbacks.js';
+import type { ResultCache } from './result-cache.js';
 
 export abstract class GroundedCall<TFallback = string> {
   protected readonly providerId: string;
@@ -30,6 +31,7 @@ export abstract class GroundedCall<TFallback = string> {
   private readonly onCallHook?: (event: CallEvent) => void;
   private readonly onResultHook?: (event: ResultEvent) => void;
   private readonly onErrorHook?: (event: ErrorEvent) => void;
+  private readonly cache?: ResultCache;
 
   constructor(config: GroundedCallConfig<TFallback>) {
     const isEmptyString =
@@ -92,6 +94,7 @@ export abstract class GroundedCall<TFallback = string> {
     this.onCallHook = config.onCall;
     this.onResultHook = config.onResult;
     this.onErrorHook = config.onError;
+    this.cache = config.cache;
   }
 
   /**
@@ -104,11 +107,27 @@ export abstract class GroundedCall<TFallback = string> {
    */
   protected async withLifecycle<T extends { usedFallback: boolean }>(
     operation: string,
-    fn: () => Promise<T>
+    fn: () => Promise<T>,
+    cacheKey?: string
   ): Promise<T> {
     const callId = randomUUID();
-    this.safeInvoke(this.onCallHook, { callId, operation });
     const start = performance.now();
+
+    if (this.cache && cacheKey !== undefined) {
+      const cached = await this.tryCacheGet<T>(cacheKey);
+      if (cached !== undefined) {
+        this.safeInvoke(this.onCallHook, { callId, operation });
+        this.safeInvoke(this.onResultHook, {
+          callId,
+          operation,
+          durationMs: performance.now() - start,
+          usedFallback: cached.usedFallback,
+        });
+        return cached;
+      }
+    }
+
+    this.safeInvoke(this.onCallHook, { callId, operation });
 
     try {
       const result = await fn();
@@ -118,6 +137,9 @@ export abstract class GroundedCall<TFallback = string> {
         durationMs: performance.now() - start,
         usedFallback: result.usedFallback,
       });
+      if (this.cache && cacheKey !== undefined) {
+        await this.tryCacheSet(cacheKey, result);
+      }
       return result;
     } catch (error) {
       this.safeInvoke(this.onErrorHook, {
@@ -128,6 +150,31 @@ export abstract class GroundedCall<TFallback = string> {
         error,
       });
       throw error;
+    }
+  }
+
+  /**
+   * A `get` failure (throw or rejection) is treated as a cache miss — the pipeline
+   * still runs — so a temporarily unreachable backing store never fails a request
+   * that would otherwise have succeeded (009-pluggable-result-cache FR-007).
+   */
+  private async tryCacheGet<T>(key: string): Promise<T | undefined> {
+    try {
+      return (await this.cache!.get(key)) as T | undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * A `set` failure never affects the result already computed by `fn()` — only the
+   * caching step is at risk (009-pluggable-result-cache FR-007).
+   */
+  private async tryCacheSet(key: string, value: unknown): Promise<void> {
+    try {
+      await this.cache!.set(key, value);
+    } catch {
+      // Cache write failures must never affect the call's own result (FR-007).
     }
   }
 

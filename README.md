@@ -447,6 +447,50 @@ for (const request of requests) {
 console.log('total usage across all calls:', totals);
 ```
 
+### Result cache
+
+All four generators accept an optional `cache` option at construction — a minimal
+`{ get(key), set(key, value) }` contract you implement against whatever store you
+choose (in-memory `Map`, Redis, or anything else). When configured, an identical
+repeated call is served from the cache without running the pipeline or contacting the
+model provider at all.
+
+- **Opt-in only**: omitting `cache` leaves behavior exactly as before — every call runs
+  the full pipeline.
+- **Storage-agnostic**: the library ships no default cache implementation and requires
+  nothing from your store beyond `get`/`set`. Both may be synchronous or return a
+  `Promise` — either works with no adapter code.
+- **Deterministic key**: the cache key is derived internally from the request's content
+  fields plus any output-affecting per-instance configuration (`identity`, `rules`,
+  `tone`, `model`, `temperature`, and, for `GroundedExtractor`, its `fields`/`strict`).
+  Two calls only ever share a cache entry when all of these match.
+- **No invalidation policy**: the library never expires or evicts entries — that is
+  entirely your cache implementation's responsibility (e.g. a TTL on a Redis key, or
+  clearing a `Map` yourself).
+- **Fails open**: if your cache's `get` or `set` throws or rejects, the request is
+  still served normally (falling back to running the pipeline) — a broken cache backend
+  never fails a call.
+- `onCall`/`onResult` still fire for a cache hit, reporting the real (cached) outcome.
+
+```ts
+import { GroundedGenerator } from 'grounded-llm';
+
+const store = new Map<string, unknown>();
+
+const generator = new GroundedGenerator({
+  fallbackValue: "I don't know.",
+  cache: {
+    get: (key) => store.get(key),
+    set: (key, value) => {
+      store.set(key, value);
+    },
+  },
+});
+
+const first = await generator.generate({ context, question }); // runs the pipeline
+const second = await generator.generate({ context, question }); // served from cache
+```
+
 ### Releasing
 
 CI (`.github/workflows/ci.yml`) runs type-check, tests, and build on every push/PR to
@@ -848,6 +892,51 @@ for (const request of requests) {
 }
 
 console.log('uso total entre todas as chamadas:', totais);
+```
+
+### Cache de resultado
+
+Os quatro generators aceitam uma opção `cache` opcional na construção — um contrato
+mínimo `{ get(key), set(key, value) }` que você implementa contra o armazenamento que
+escolher (`Map` em memória, Redis, ou qualquer outro). Quando configurado, uma chamada
+idêntica repetida é atendida pelo cache sem rodar o pipeline nem contatar o provider.
+
+- **Opt-in**: omitir `cache` mantém o comportamento exatamente como antes — toda
+  chamada roda o pipeline completo.
+- **Agnóstico de armazenamento**: a biblioteca não traz implementação padrão nem exige
+  nada além de `get`/`set`. Ambos podem ser síncronos ou retornar uma `Promise` — os
+  dois funcionam sem código adaptador.
+- **Chave determinística**: a chave de cache é derivada internamente a partir dos campos
+  de conteúdo da requisição mais qualquer configuração por instância que afete a saída
+  (`identity`, `rules`, `tone`, `model`, `temperature` e, no `GroundedExtractor`, seus
+  `fields`/`strict`). Duas chamadas só compartilham uma entrada de cache quando tudo
+  isso coincide.
+- **Sem política de invalidação**: a biblioteca nunca expira ou remove entradas — isso é
+  responsabilidade total da sua implementação de cache (TTL numa chave Redis, ou limpar
+  um `Map` manualmente).
+- **Falha de forma segura**: se `get` ou `set` do seu cache lançar exceção ou rejeitar, a
+  chamada ainda é atendida normalmente (caindo para rodar o pipeline) — um backend de
+  cache quebrado nunca falha uma chamada.
+- `onCall`/`onResult` continuam disparando num cache hit, reportando o resultado real
+  (vindo do cache).
+
+```ts
+import { GroundedGenerator } from 'grounded-llm';
+
+const store = new Map<string, unknown>();
+
+const generator = new GroundedGenerator({
+  fallbackValue: 'Não sei.',
+  cache: {
+    get: (key) => store.get(key),
+    set: (key, value) => {
+      store.set(key, value);
+    },
+  },
+});
+
+const primeira = await generator.generate({ context, question }); // roda o pipeline
+const segunda = await generator.generate({ context, question }); // vem do cache
 ```
 
 ### Releases
