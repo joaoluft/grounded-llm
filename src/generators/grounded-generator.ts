@@ -1,6 +1,7 @@
 import { zodResponseFormat } from 'openai/helpers/zod.mjs';
 import { GroundedCall } from '../core/grounded-call.js';
 import type { GroundedCallConfig, GroundedCallResult } from '../core/types.js';
+import type { ProviderUsage } from '../providers/types.js';
 import { InvalidModelOutputError } from '../core/errors.js';
 import { groundedGenerationSchema } from './schema.js';
 
@@ -107,7 +108,7 @@ export class GroundedGenerator extends GroundedCall {
   private buildFallbackResult(
     reasoning: string,
     extractedFacts: string[] = [],
-    usage?: GroundedCallResult['usage']
+    usage?: ProviderUsage
   ): GroundedCallResult {
     return {
       finalAnswer: this.fallbackValue as string,

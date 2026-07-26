@@ -1,6 +1,7 @@
 import { zodResponseFormat } from 'openai/helpers/zod.mjs';
 import { GroundedCall } from '../core/grounded-call.js';
 import type { GroundedCallConfig, GroundedCallResult } from '../core/types.js';
+import type { ProviderUsage } from '../providers/types.js';
 import { InvalidModelOutputError } from '../core/errors.js';
 import { groundedEnrichmentSchema } from './grounded-enricher.schema.js';
 
@@ -96,7 +97,7 @@ export class GroundedEnricher extends GroundedCall {
     reasoning: string,
     baseContent: string,
     extractedFacts: string[] = [],
-    usage?: GroundedCallResult['usage']
+    usage?: ProviderUsage
   ): GroundedCallResult {
     return {
       finalAnswer: baseContent,
