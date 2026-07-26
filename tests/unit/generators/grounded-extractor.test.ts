@@ -400,4 +400,25 @@ describe('GroundedExtractor - pluggable result cache (009-pluggable-result-cache
     expect(second).toEqual(first);
     expect(parseMock).toHaveBeenCalledTimes(1);
   });
+
+  it('never collides two instances that differ only in fallbackValue sharing the same cache', async () => {
+    mockParsedResponse({ name: null, email: null, reasoning: 'nothing found' });
+    mockParsedResponse({ name: null, email: null, reasoning: 'nothing found' });
+    const store = new Map<string, unknown>();
+    const cache = {
+      get: (k: string) => store.get(k),
+      set: (k: string, v: unknown) => void store.set(k, v),
+    };
+
+    const withFallback = new GroundedExtractor({ fields, fallbackValue, cache });
+    const withoutFallback = new GroundedExtractor({ fields, cache });
+
+    const request = { message: 'No relevant info here.' };
+    const first = await withFallback.extract(request);
+    const second = await withoutFallback.extract(request);
+
+    expect(parseMock).toHaveBeenCalledTimes(2);
+    expect(first.usedFallback).toBe(true);
+    expect(second.usedFallback).toBe(false);
+  });
 });

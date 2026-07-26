@@ -720,6 +720,20 @@ describe('GroundedGenerator - pluggable result cache (009-pluggable-result-cache
     expect(parseMock).toHaveBeenCalledTimes(2);
   });
 
+  it('never collides two instances that differ only in fallbackValue sharing the same cache', async () => {
+    mockParsedResponse(OUTPUT);
+    mockParsedResponse(OUTPUT);
+    const cache = mapCache();
+
+    const withFallback = new GroundedGenerator({ fallbackValue: "I don't know.", cache });
+    const withoutFallback = new GroundedGenerator({ cache });
+
+    await withFallback.generate(REQUEST);
+    await withoutFallback.generate(REQUEST);
+
+    expect(parseMock).toHaveBeenCalledTimes(2);
+  });
+
   it('caches a fallback result too, so a repeated known-insufficient-context request also skips the model', async () => {
     mockParsedResponse({
       extracted_facts: [],

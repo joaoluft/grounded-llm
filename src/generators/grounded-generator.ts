@@ -61,6 +61,7 @@ export class GroundedGenerator extends GroundedCall {
       tone: this.tone,
       model: this.model,
       temperature: this.temperature,
+      fallbackValue: this.fallbackValue,
     });
     return this.withLifecycle(
       'GroundedGenerator.generate',

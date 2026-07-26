@@ -82,6 +82,7 @@ export class GroundedExtractor<Fields extends z.ZodRawShape> extends GroundedCal
       temperature: this.temperature,
       fields: this.fieldsFingerprint(),
       strict: this.strict,
+      fallbackValue: this.fallbackValue,
     });
     return this.withLifecycle('GroundedExtractor.extract', () => this.doExtract(request), cacheKey);
   }

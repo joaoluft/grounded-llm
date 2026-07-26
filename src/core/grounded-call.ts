@@ -156,11 +156,15 @@ export abstract class GroundedCall<TFallback = string> {
   /**
    * A `get` failure (throw or rejection) is treated as a cache miss — the pipeline
    * still runs — so a temporarily unreachable backing store never fails a request
-   * that would otherwise have succeeded (009-pluggable-result-cache FR-007).
+   * that would otherwise have succeeded (009-pluggable-result-cache FR-007). A clean
+   * `null` resolution (the standard "key not found" value for common clients like
+   * ioredis/node-redis, as opposed to `undefined`) is normalized to `undefined` here
+   * too, so it's treated as a miss rather than crashing on `cached.usedFallback`.
    */
   private async tryCacheGet<T>(key: string): Promise<T | undefined> {
     try {
-      return (await this.cache!.get(key)) as T | undefined;
+      const cached = await this.cache!.get(key);
+      return cached === null ? undefined : (cached as T | undefined);
     } catch {
       return undefined;
     }

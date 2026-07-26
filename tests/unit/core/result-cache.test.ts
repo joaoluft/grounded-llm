@@ -191,6 +191,42 @@ describe('GroundedCall.withLifecycle() - cache miss (write-through)', () => {
   });
 });
 
+describe('GroundedCall.withLifecycle() - null-returning get() is treated as a miss', () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+  });
+
+  it('does not crash and runs fn() when get() resolves to null (e.g. ioredis/node-redis miss convention)', async () => {
+    const cache: ResultCache = {
+      get: () => null,
+      set: vi.fn(),
+    };
+    const call = makeCall({ cache });
+
+    const fn = vi.fn().mockResolvedValue({ usedFallback: false, value: 'fresh' });
+    await expect(call.run('Test.op', fn, 'key-1')).resolves.toEqual({
+      usedFallback: false,
+      value: 'fresh',
+    });
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not crash when get() resolves to a Promise of null', async () => {
+    const cache: ResultCache = {
+      get: () => Promise.resolve(null),
+      set: vi.fn(),
+    };
+    const call = makeCall({ cache });
+
+    const fn = vi.fn().mockResolvedValue({ usedFallback: false, value: 'fresh' });
+    await expect(call.run('Test.op', fn, 'key-1')).resolves.toEqual({
+      usedFallback: false,
+      value: 'fresh',
+    });
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('GroundedCall.withLifecycle() - cache failure isolation (FR-007)', () => {
   beforeEach(() => {
     parseMock.mockReset();
