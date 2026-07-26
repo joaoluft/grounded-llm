@@ -51,7 +51,7 @@ export class GroundedComposer extends GroundedCall {
     const systemPrompt = this.buildSystemPrompt(SYSTEM_PROMPT);
     this.assertContextWithinLimit(systemPrompt + userPrompt);
 
-    const rawOutput = await this.callModel({
+    const { data: rawOutput, usage } = await this.callModel({
       model: this.model,
       temperature: this.temperature,
       response_format: zodResponseFormat(groundedCompositionSchema, 'grounded_composition'),
@@ -78,6 +78,7 @@ export class GroundedComposer extends GroundedCall {
       usedFallback: false,
       extractedFacts: [...output.applied_rules, ...output.context_excerpts],
       reasoning: output.reasoning,
+      usage,
     };
   }
 

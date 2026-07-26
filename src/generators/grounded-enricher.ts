@@ -1,6 +1,7 @@
 import { zodResponseFormat } from 'openai/helpers/zod.mjs';
 import { GroundedCall } from '../core/grounded-call.js';
 import type { GroundedCallConfig, GroundedCallResult } from '../core/types.js';
+import type { ProviderUsage } from '../providers/types.js';
 import { InvalidModelOutputError } from '../core/errors.js';
 import { groundedEnrichmentSchema } from './grounded-enricher.schema.js';
 
@@ -52,7 +53,7 @@ export class GroundedEnricher extends GroundedCall {
     const systemPrompt = this.buildSystemPrompt(SYSTEM_PROMPT);
     this.assertContextWithinLimit(systemPrompt + userPrompt);
 
-    const rawOutput = await this.callModel({
+    const { data: rawOutput, usage } = await this.callModel({
       model: this.model,
       temperature: this.temperature,
       response_format: zodResponseFormat(groundedEnrichmentSchema, 'grounded_enrichment'),
@@ -78,7 +79,8 @@ export class GroundedEnricher extends GroundedCall {
       return this.buildUnchangedResult(
         output.reasoning,
         request.baseContent,
-        output.extracted_facts
+        output.extracted_facts,
+        usage
       );
     }
 
@@ -87,19 +89,22 @@ export class GroundedEnricher extends GroundedCall {
       usedFallback: false,
       extractedFacts: output.extracted_facts,
       reasoning: output.reasoning,
+      usage,
     };
   }
 
   private buildUnchangedResult(
     reasoning: string,
     baseContent: string,
-    extractedFacts: string[] = []
+    extractedFacts: string[] = [],
+    usage?: ProviderUsage
   ): GroundedCallResult {
     return {
       finalAnswer: baseContent,
       usedFallback: true,
       extractedFacts,
       reasoning,
+      usage,
     };
   }
 

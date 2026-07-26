@@ -126,8 +126,23 @@ describe('GroundedCall ModelClient dispatch (006-langchain-model-support, Founda
       choices: [{ message: { refusal: null, parsed: { ok: true } } }],
     });
     const call = new TestableGroundedCall({ fallbackValue: 'sorry' });
-    await expect(call.call({} as any)).resolves.toEqual({ ok: true });
+    await expect(call.call({} as any)).resolves.toEqual({
+      data: { ok: true },
+      usage: undefined,
+    });
     expect(parseMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('surfaces provider-reported token usage on callModel (issue #6)', async () => {
+    parseMock.mockResolvedValueOnce({
+      choices: [{ message: { refusal: null, parsed: { ok: true } } }],
+      usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+    });
+    const call = new TestableGroundedCall({ fallbackValue: 'sorry' });
+    await expect(call.call({} as any)).resolves.toEqual({
+      data: { ok: true },
+      usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 },
+    });
   });
 });
 
@@ -150,8 +165,21 @@ describe('GroundedCall langchainModel dispatch (006-langchain-model-support, US1
         response_format: { json_schema: { name: 'x', schema: {} } },
         messages: [{ role: 'user', content: 'hi' }],
       } as any)
-    ).resolves.toEqual({ ok: true });
+    ).resolves.toEqual({ data: { ok: true }, usage: undefined });
     expect(parseMock).not.toHaveBeenCalled();
+  });
+
+  it('always returns usage: undefined for the langchainModel path (issue #6)', async () => {
+    const fakeModel = makeFakeLangchainModel(async () => ({ ok: true }));
+    const call = new TestableGroundedCall({ langchainModel: fakeModel });
+
+    const result = await call.call({
+      model: 'ignored',
+      temperature: 0,
+      response_format: { json_schema: { name: 'x', schema: {} } },
+      messages: [{ role: 'user', content: 'hi' }],
+    } as any);
+    expect(result.usage).toBeUndefined();
   });
 
   it('defaults maxContextTokens to 128000 when langchainModel is used without an explicit value (FR-004)', () => {
@@ -296,7 +324,10 @@ describe('GroundedCall context-overflow, technical-failure, and invalid-output g
       choices: [{ message: { refusal: null, parsed: { ok: true } } }],
     });
     const call = new TestableGroundedCall({ fallbackValue: 'sorry' });
-    await expect(call.call({} as any)).resolves.toEqual({ ok: true });
+    await expect(call.call({} as any)).resolves.toEqual({
+      data: { ok: true },
+      usage: undefined,
+    });
   });
 
   it('distinguishes all three operational error types and never retries automatically', async () => {
