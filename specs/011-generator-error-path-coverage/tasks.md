@@ -158,7 +158,7 @@ appears on the workflow run's Summary page without any local command.
       it would otherwise be misleading; otherwise leave as-is and note in the PR
       description why no doc change was needed.
 
-- [ ] T011 [US2] Push this branch (or open the PR) and confirm, on the resulting
+- [X] T011 [US2] Push this branch (or open the PR) and confirm, on the resulting
       GitHub Actions run's Summary page, that the coverage table is visible without
       checking out the branch or running any command locally (spec.md SC-002,
       quickstart.md "Validate User Story 2").
@@ -176,7 +176,7 @@ Summary page, regardless of whether User Story 1's new tests exist yet.
       all green.
 - [X] T013 [P] Run `npm run test:coverage` and confirm no regression from the 100%
       statement/branch baseline (spec.md SC-003).
-- [ ] T014 Cross-check spec.md's Success Criteria (SC-001 through SC-004) and GitHub
+- [X] T014 Cross-check spec.md's Success Criteria (SC-001 through SC-004) and GitHub
       issue #5's original acceptance criteria are both fully satisfied; reference
       "Closes #5" in the pull request description.
 
