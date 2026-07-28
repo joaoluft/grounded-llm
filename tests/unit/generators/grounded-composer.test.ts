@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { APIConnectionError } from 'openai/error.mjs';
 import { GroundedComposer } from '../../../src/generators/grounded-composer.js';
-import { InvalidModelOutputError } from '../../../src/core/errors.js';
+import {
+  InvalidModelOutputError,
+  ModelUnavailableError,
+  ContextTooLargeError,
+} from '../../../src/core/errors.js';
 
 const parseMock = vi.fn();
 
@@ -379,6 +384,35 @@ describe('GroundedComposer - lifecycle callbacks: failure classification (008-st
     expect(parseMock).not.toHaveBeenCalled();
     expect(onCall).toHaveBeenCalledTimes(1);
     expect(onError.mock.calls[0][0].errorType).toBe('unknown');
+  });
+
+  it("reports errorType 'model-unavailable' when the provider call fails (issue #5)", async () => {
+    parseMock.mockRejectedValueOnce(new APIConnectionError({ message: 'network down' }));
+    const onError = vi.fn();
+    const composer = new GroundedComposer({ onError });
+
+    await expect(
+      composer.compose({ instructions: 'Ask for the protocol.' })
+    ).rejects.toBeInstanceOf(ModelUnavailableError);
+    expect(onError.mock.calls[0][0].errorType).toBe('model-unavailable');
+  });
+
+  it('rejects with ContextTooLargeError, without ever calling the model, when instructions exceed maxContextTokens (issue #5)', async () => {
+    const composer = new GroundedComposer({ maxContextTokens: 1 });
+
+    await expect(composer.compose({ instructions: 'a'.repeat(1000) })).rejects.toBeInstanceOf(
+      ContextTooLargeError
+    );
+    expect(parseMock).not.toHaveBeenCalled();
+  });
+
+  it('still rejects with ModelUnavailableError, never the configured fallbackValue, when the provider call fails (issue #5)', async () => {
+    parseMock.mockRejectedValueOnce(new APIConnectionError({ message: 'network down' }));
+    const composer = new GroundedComposer({ fallbackValue: 'SHOULD_NEVER_APPEAR' });
+
+    await expect(
+      composer.compose({ instructions: 'Ask for the protocol.' })
+    ).rejects.toBeInstanceOf(ModelUnavailableError);
   });
 });
 

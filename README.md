@@ -493,9 +493,9 @@ const second = await generator.generate({ context, question }); // served from c
 
 ### Releasing
 
-CI (`.github/workflows/ci.yml`) runs type-check, tests, and build on every push/PR to
-`main`. Publishing to npm (`.github/workflows/release.yml`) is triggered by pushing a
-`v*.*.*` tag:
+CI (`.github/workflows/ci.yml`) runs type-check, tests, a coverage summary (published
+to the workflow run's summary page), and build on every push/PR to `main`. Publishing
+to npm (`.github/workflows/release.yml`) is triggered by pushing a `v*.*.*` tag:
 
 ```sh
 npm version patch   # or minor / major — bumps package.json and creates a git tag
@@ -946,7 +946,8 @@ const segunda = await generator.generate({ context, question }); // vem do cache
 
 ### Releases
 
-O CI (`.github/workflows/ci.yml`) roda type-check, testes e build em todo push/PR para
+O CI (`.github/workflows/ci.yml`) roda type-check, testes, um resumo de cobertura
+(publicado na página de resumo da execução do workflow) e build em todo push/PR para
 `main`. A publicação no npm (`.github/workflows/release.yml`) é disparada ao subir uma
 tag `v*.*.*`:
 

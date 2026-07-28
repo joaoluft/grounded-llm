@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { z } from 'zod';
+import { APIConnectionError } from 'openai/error.mjs';
 import { GroundedExtractor } from '../../../src/generators/grounded-extractor.js';
-import { InvalidModelOutputError, ContextTooLargeError } from '../../../src/core/errors.js';
+import {
+  InvalidModelOutputError,
+  ContextTooLargeError,
+  ModelUnavailableError,
+} from '../../../src/core/errors.js';
 
 const parseMock = vi.fn();
 
@@ -355,6 +360,17 @@ describe('GroundedExtractor - lifecycle callbacks: failure classification (008-s
       InvalidModelOutputError
     );
     expect(onError.mock.calls[0][0].errorType).toBe('invalid-output');
+  });
+
+  it("reports errorType 'model-unavailable' when the provider call fails (issue #5)", async () => {
+    parseMock.mockRejectedValueOnce(new APIConnectionError({ message: 'network down' }));
+    const onError = vi.fn();
+    const extractor = new GroundedExtractor({ fields, fallbackValue, onError });
+
+    await expect(extractor.extract({ message: "I'm Ada Lovelace" })).rejects.toBeInstanceOf(
+      ModelUnavailableError
+    );
+    expect(onError.mock.calls[0][0].errorType).toBe('model-unavailable');
   });
 
   it("reports errorType 'context-too-large' when the prompt exceeds maxContextTokens, without ever calling the model", async () => {
