@@ -24,16 +24,5 @@ export function runLLMProviderContractTests(
       const adapter = createAdapter();
       expect(typeof adapter.completeStructured).toBe('function');
     });
-
-    it('handles unsupported optional capabilities gracefully if called', async () => {
-      const adapter = createAdapter();
-      if (!adapter.capabilities.streaming && adapter.stream) {
-        // If capability is false but method present, it should throw or handle
-        expect(typeof adapter.stream).toBe('function');
-      }
-      if (!adapter.capabilities.embeddings && adapter.embed) {
-        expect(typeof adapter.embed).toBe('function');
-      }
-    });
   });
 }

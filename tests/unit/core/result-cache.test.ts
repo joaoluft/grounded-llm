@@ -145,6 +145,13 @@ describe('deriveCacheKey()', () => {
       deriveCacheKey('GroundedComposer.compose', input)
     );
   });
+
+  it('sorts keys inside array elements too, not just top-level objects', () => {
+    const a = deriveCacheKey('op', [{ b: 2, a: 1 }, { c: 3 }]);
+    const b = deriveCacheKey('op', [{ a: 1, b: 2 }, { c: 3 }]);
+    expect(a).toBe(b);
+    expect(a).not.toBe(deriveCacheKey('op', [{ c: 3 }, { a: 1, b: 2 }]));
+  });
 });
 
 describe('GroundedCall.withLifecycle() - cache hit', () => {

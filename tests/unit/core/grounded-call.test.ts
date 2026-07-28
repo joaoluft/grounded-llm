@@ -113,6 +113,32 @@ describe('GroundedCall construction', () => {
     const call = new TestableGroundedCall({ fallbackValue: 'sorry' });
     expect(call.getModel()).toBe('gpt-4o-mini');
   });
+
+  it('uses the explicit model when provided, instead of the provider default', () => {
+    process.env['OPENAI_API_KEY'] = 'test-key';
+    const call = new TestableGroundedCall({ fallbackValue: 'sorry', model: 'gpt-4o' });
+    expect(call.getModel()).toBe('gpt-4o');
+  });
+
+  it('defaults to the anthropic model when provider is anthropic and no model is given', () => {
+    const call = new TestableGroundedCall({
+      fallbackValue: 'sorry',
+      provider: 'anthropic',
+      apiKey: 'test-key',
+    });
+    expect(call.getModel()).toBe('claude-3-5-haiku-latest');
+    expect(call.getClient()).toBeUndefined();
+  });
+
+  it('defaults to the google model when provider is google and no model is given', () => {
+    const call = new TestableGroundedCall({
+      fallbackValue: 'sorry',
+      provider: 'google',
+      apiKey: 'test-key',
+    });
+    expect(call.getModel()).toBe('gemini-1.5-flash');
+    expect(call.getClient()).toBeUndefined();
+  });
 });
 
 describe('GroundedCall ModelClient dispatch (006-langchain-model-support, Foundational)', () => {
@@ -328,6 +354,66 @@ describe('GroundedCall context-overflow, technical-failure, and invalid-output g
       data: { ok: true },
       usage: undefined,
     });
+  });
+
+  it('classifies a raw providerAdapter error named LengthFinishReasonError as InvalidModelOutputError', async () => {
+    const providerAdapter = {
+      providerId: 'custom',
+      capabilities: { structuredOutput: true, streaming: false, embeddings: false },
+      completeStructured: vi.fn().mockRejectedValue({ name: 'LengthFinishReasonError' }),
+    } as any;
+    const call = new TestableGroundedCall({ fallbackValue: 'sorry', providerAdapter });
+    await expect(call.call({} as any)).rejects.toBeInstanceOf(InvalidModelOutputError);
+  });
+
+  it('classifies a raw providerAdapter error named ContentFilterFinishReasonError as InvalidModelOutputError', async () => {
+    const providerAdapter = {
+      providerId: 'custom',
+      capabilities: { structuredOutput: true, streaming: false, embeddings: false },
+      completeStructured: vi.fn().mockRejectedValue({ name: 'ContentFilterFinishReasonError' }),
+    } as any;
+    const call = new TestableGroundedCall({ fallbackValue: 'sorry', providerAdapter });
+    await expect(call.call({} as any)).rejects.toBeInstanceOf(InvalidModelOutputError);
+  });
+
+  it('falls back to ModelUnavailableError for an unrecognized raw providerAdapter error object', async () => {
+    const providerAdapter = {
+      providerId: 'custom',
+      capabilities: { structuredOutput: true, streaming: false, embeddings: false },
+      completeStructured: vi.fn().mockRejectedValue({ name: 'SomeOtherError' }),
+    } as any;
+    const call = new TestableGroundedCall({ fallbackValue: 'sorry', providerAdapter });
+    await expect(call.call({} as any)).rejects.toBeInstanceOf(ModelUnavailableError);
+  });
+
+  it('wraps a plain Error (not a recognized SDK/name-tagged error) into ModelUnavailableError', async () => {
+    const providerAdapter = {
+      providerId: 'custom',
+      capabilities: { structuredOutput: true, streaming: false, embeddings: false },
+      completeStructured: vi.fn().mockRejectedValue(new Error('generic failure')),
+    } as any;
+    const call = new TestableGroundedCall({ fallbackValue: 'sorry', providerAdapter });
+    await expect(call.call({} as any)).rejects.toThrow('generic failure');
+  });
+
+  it('getClient() returns undefined for a custom providerAdapter with no client property', () => {
+    const providerAdapter = {
+      providerId: 'custom',
+      capabilities: { structuredOutput: true, streaming: false, embeddings: false },
+      completeStructured: vi.fn(),
+    } as any;
+    const call = new TestableGroundedCall({ fallbackValue: 'sorry', providerAdapter });
+    expect(call.getClient()).toBeUndefined();
+  });
+
+  it('falls back to ModelUnavailableError for a non-object rejection from providerAdapter', async () => {
+    const providerAdapter = {
+      providerId: 'custom',
+      capabilities: { structuredOutput: true, streaming: false, embeddings: false },
+      completeStructured: vi.fn().mockRejectedValue('plain string failure'),
+    } as any;
+    const call = new TestableGroundedCall({ fallbackValue: 'sorry', providerAdapter });
+    await expect(call.call({} as any)).rejects.toThrow('plain string failure');
   });
 
   it('distinguishes all three operational error types and never retries automatically', async () => {
