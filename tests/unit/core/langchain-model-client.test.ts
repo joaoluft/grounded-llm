@@ -119,4 +119,15 @@ describe('LangChainModelClient (006-langchain-model-support, US1 happy path)', (
 
     await expect(client.parse(PARAMS as any)).rejects.toBeInstanceOf(InvalidModelOutputError);
   });
+
+  it('stringifies a non-Error rejection into the ModelUnavailableError message (US2, FR-007)', async () => {
+    const fake = makeFakeChatModel({
+      invoke: async () => {
+        throw 'network down';
+      },
+    });
+    const client = new LangChainModelClient(fake.model);
+
+    await expect(client.parse(PARAMS as any)).rejects.toThrow('network down');
+  });
 });
