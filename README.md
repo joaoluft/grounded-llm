@@ -109,11 +109,11 @@ different context-grounded LLM call scenarios; the fourth, `GroundedComposer`, i
 anchored in per-call `instructions` instead — for scenarios where the message content
 is already fully determined by rules, not by information to look up.
 
-| Component                                 | Use case                                                              | Method                                |
-| ----------------------------------------- | --------------------------------------------------------------------- | ------------------------------------- |
-| [`GroundedGenerator`](#groundedgenerator) | Generate the final answer to the user from retrieved context          | `.generate({ context, question })`    |
-| [`GroundedEnricher`](#groundedenricher)   | Enrich an existing base text with retrieved context                   | `.generate({ baseContent, context })` |
-| [`GroundedExtractor`](#groundedextractor) | Extract a structured object (fields you define) from the user message | `.extract({ message })`               |
+| Component                                 | Use case                                                                              | Method                                |
+| ----------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------- |
+| [`GroundedGenerator`](#groundedgenerator) | Generate the final answer to the user from retrieved context                          | `.generate({ context, question })`    |
+| [`GroundedEnricher`](#groundedenricher)   | Enrich an existing base text with retrieved context                                   | `.generate({ baseContent, context })` |
+| [`GroundedExtractor`](#groundedextractor) | Extract a structured object (fields you define) from the user message                 | `.extract({ message })`               |
 | [`GroundedComposer`](#groundedcomposer)   | Compose a message anchored in per-call instructions, with context as optional support | `.compose({ instructions, context })` |
 
 The first three share the same principles: optional fallback at construction (see
@@ -560,11 +560,11 @@ cenários diferentes de chamada LLM ancorada em contexto; o quarto, o
 conteúdo da mensagem já é totalmente determinado por regras, não por informação a ser
 buscada.
 
-| Componente                                  | Uso                                                                              | Método                                |
-| ------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------- |
-| [`GroundedGenerator`](#groundedgenerator-1) | Gerar a resposta final ao usuário a partir de contexto recuperado                | `.generate({ context, question })`    |
-| [`GroundedEnricher`](#groundedenricher-1)   | Enriquecer um texto-base existente com contexto recuperado                       | `.generate({ baseContent, context })` |
-| [`GroundedExtractor`](#groundedextractor-1) | Extrair um objeto estruturado (campos definidos por você) da mensagem do usuário | `.extract({ message })`               |
+| Componente                                  | Uso                                                                                      | Método                                |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------- |
+| [`GroundedGenerator`](#groundedgenerator-1) | Gerar a resposta final ao usuário a partir de contexto recuperado                        | `.generate({ context, question })`    |
+| [`GroundedEnricher`](#groundedenricher-1)   | Enriquecer um texto-base existente com contexto recuperado                               | `.generate({ baseContent, context })` |
+| [`GroundedExtractor`](#groundedextractor-1) | Extrair um objeto estruturado (campos definidos por você) da mensagem do usuário         | `.extract({ message })`               |
 | [`GroundedComposer`](#groundedcomposer-1)   | Compor uma mensagem ancorada em instruções por chamada, com contexto como apoio opcional | `.compose({ instructions, context })` |
 
 Os três primeiros compartilham os mesmos princípios: fallback opcional na construção
