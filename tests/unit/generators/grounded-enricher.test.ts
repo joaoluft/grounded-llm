@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { APIConnectionError } from 'openai/error.mjs';
 import { GroundedEnricher } from '../../../src/generators/grounded-enricher.js';
-import { InvalidModelOutputError } from '../../../src/core/errors.js';
+import {
+  InvalidModelOutputError,
+  ModelUnavailableError,
+  ContextTooLargeError,
+} from '../../../src/core/errors.js';
 
 const parseMock = vi.fn();
 
@@ -321,6 +326,34 @@ describe('GroundedEnricher - malformed model output (defense-in-depth for the la
     await expect(
       enricher.generate({ baseContent: 'base', context: 'fact' })
     ).rejects.toBeInstanceOf(InvalidModelOutputError);
+  });
+});
+
+describe('GroundedEnricher - operational error paths (issue #5)', () => {
+  beforeEach(() => {
+    parseMock.mockReset();
+    process.env['OPENAI_API_KEY'] = 'test-key';
+  });
+
+  it('rejects with ModelUnavailableError, not a fallback, when the provider call fails', async () => {
+    parseMock.mockRejectedValueOnce(new APIConnectionError({ message: 'network down' }));
+    const enricher = new GroundedEnricher({ fallbackValue: 'N/A' });
+
+    await expect(
+      enricher.generate({
+        baseContent: 'Thanks for your order!',
+        context: 'Ships in 3 business days.',
+      })
+    ).rejects.toBeInstanceOf(ModelUnavailableError);
+  });
+
+  it('rejects with ContextTooLargeError, without ever calling the model, when the prompt exceeds maxContextTokens', async () => {
+    const enricher = new GroundedEnricher({ fallbackValue: 'N/A', maxContextTokens: 1 });
+
+    await expect(
+      enricher.generate({ baseContent: 'a', context: 'a'.repeat(1000) })
+    ).rejects.toBeInstanceOf(ContextTooLargeError);
+    expect(parseMock).not.toHaveBeenCalled();
   });
 });
 
