@@ -495,7 +495,7 @@ const second = await generator.generate({ context, question }); // served from c
 
 CI (`.github/workflows/ci.yml`) runs type-check, tests, a coverage summary (published
 to the workflow run's summary page), and build on every push/PR to `main`. Publishing
-(`.github/workflows/release.yml`) is triggered by pushing a `v*.*.*` tag:
+to npm (`.github/workflows/release.yml`) is triggered by pushing a `v*.*.*` tag:
 
 ```sh
 npm version patch   # or minor / major — bumps package.json and creates a git tag
@@ -503,11 +503,8 @@ git push --follow-tags
 ```
 
 The release workflow verifies the tag matches `package.json`'s version, then runs the
-same build/test steps before publishing to both **npm** and **GitHub Packages**. The
-npm publish uses npm provenance via OIDC trusted publishing (no `NPM_TOKEN` secret
-needed); the GitHub Packages publish authenticates with the workflow's own
-`GITHUB_TOKEN` and requires the package scope (`@joaoluft`) to match the repository
-owner.
+same build/test steps before publishing with npm provenance. Requires an `NPM_TOKEN`
+secret (an npm Automation token) configured in the repository settings.
 
 ### Contributing
 
@@ -951,7 +948,7 @@ const segunda = await generator.generate({ context, question }); // vem do cache
 
 O CI (`.github/workflows/ci.yml`) roda type-check, testes, um resumo de cobertura
 (publicado na página de resumo da execução do workflow) e build em todo push/PR para
-`main`. A publicação (`.github/workflows/release.yml`) é disparada ao subir uma
+`main`. A publicação no npm (`.github/workflows/release.yml`) é disparada ao subir uma
 tag `v*.*.*`:
 
 ```sh
@@ -960,11 +957,8 @@ git push --follow-tags
 ```
 
 O workflow de release confere se a tag bate com a versão do `package.json`, roda o
-mesmo build/test novamente, e então publica tanto no **npm** quanto no **GitHub
-Packages**. A publicação no npm usa provenance via OIDC trusted publishing (sem
-precisar de secret `NPM_TOKEN`); a publicação no GitHub Packages autentica com o
-`GITHUB_TOKEN` do próprio workflow e exige que o escopo do pacote (`@joaoluft`) bata
-com o dono do repositório.
+mesmo build/test novamente, e então publica com npm provenance. Requer um secret
+`NPM_TOKEN` (token de automação do npm) configurado nas configurações do repositório.
 
 ### Contribuindo
 
