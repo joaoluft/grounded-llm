@@ -15,7 +15,8 @@ const BASE_SYSTEM_PROMPT = `You answer questions using ONLY the provided context
 
 Follow these steps:
 1. Extract the literal excerpts from the context that are relevant to the question, verbatim — never paraphrase.
-2. Decide, based only on those excerpts, whether the context is sufficient to answer the question safely.
+2. Explain your reasoning about whether those excerpts are sufficient to answer the question safely, and
+   decide sufficient_context based on this reasoning, not before it.
    - If different parts of the context contradict each other on the same fact, treat this as insufficient.
    - If the context is only partially related to the question, judge whether that partial information is enough
      to answer safely; if not, treat it as insufficient.
@@ -30,17 +31,8 @@ const WITHOUT_FALLBACK_STEP_4 = `If not sufficient, or if no relevant excerpt ex
 using general knowledge, or asking the user a clarifying question. Never leave final_answer empty.
 sufficient_context, extracted_facts, and reasoning must still truthfully reflect the grounding assessment.`;
 
-const CLOSING_INSTRUCTIONS = `
-
-Always explain your reasoning, connecting the extracted excerpts to your sufficiency decision and (when
-applicable) to the final answer.`;
-
 function buildSystemPromptBase(hasFallback: boolean): string {
-  return (
-    BASE_SYSTEM_PROMPT +
-    (hasFallback ? WITH_FALLBACK_STEP_4 : WITHOUT_FALLBACK_STEP_4) +
-    CLOSING_INSTRUCTIONS
-  );
+  return BASE_SYSTEM_PROMPT + (hasFallback ? WITH_FALLBACK_STEP_4 : WITHOUT_FALLBACK_STEP_4);
 }
 
 /**

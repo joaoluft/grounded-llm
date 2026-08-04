@@ -17,16 +17,13 @@ invent information beyond the base text and the context.
 Follow these steps:
 1. Extract the literal excerpts from the context that are relevant additions to the base text, verbatim —
    never paraphrase.
-2. Decide, based only on those excerpts, whether the context provides safe additional information for the
-   base text.
+2. Explain your reasoning about whether those excerpts provide safe additional information for the base
+   text, and decide sufficient_context based on this reasoning, not before it.
    - If different parts of the context contradict each other on the same fact, treat this as insufficient.
 3. If sufficient, write the enriched text by combining the base text with the extracted excerpts — never add
    outside knowledge.
 4. If not sufficient, or if no relevant excerpt exists, set sufficient_context to false and leave
-   enriched_text empty — the original base text will be used instead of your output.
-
-Always explain your reasoning, connecting the extracted excerpts to your sufficiency decision and (when
-applicable) to the enrichment performed.`;
+   enriched_text empty — the original base text will be used instead of your output.`;
 
 /**
  * Enriches a base text strictly with retrieved context, or returns the base text
