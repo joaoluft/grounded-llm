@@ -9,8 +9,8 @@ import { z } from 'zod';
  */
 export const groundedEnrichmentSchema = z.object({
   extracted_facts: z.array(z.string()),
-  sufficient_context: z.boolean(),
   reasoning: z.string(),
+  sufficient_context: z.boolean(),
   enriched_text: z.string(),
 });
 

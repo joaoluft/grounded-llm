@@ -10,15 +10,15 @@ export const groundedGenerationSchema = z.object({
   extracted_facts: z
     .array(z.string())
     .describe('Trechos literais extraídos do contexto fornecido que sustentam a resposta.'),
+  reasoning: z
+    .string()
+    .describe(
+      'Raciocínio conectando os trechos extraídos à decisão de suficiência e à resposta final. Deve ser escrito antes de decidir sufficient_context, não depois.'
+    ),
   sufficient_context: z
     .boolean()
     .describe(
       'Se o contexto fornecido é suficiente para responder com segurança, sem completar com conhecimento externo.'
-    ),
-  reasoning: z
-    .string()
-    .describe(
-      'Raciocínio conectando os trechos extraídos à decisão de suficiência e à resposta final.'
     ),
   final_answer: z
     .string()

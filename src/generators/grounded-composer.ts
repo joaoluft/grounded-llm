@@ -16,17 +16,16 @@ call — instructions are the mandatory, primary source of the message's content
 Follow these steps:
 1. Extract the literal excerpts from the instructions that determine the message to be composed,
    verbatim — never paraphrase. This MUST never be empty.
-2. If conversation data (context) is provided, decide whether any part of it is relevant to this
-   message — for example, a conflict with the instructions, acknowledging progress, or referencing
-   data already mentioned. This is support only: context is never a requirement, and its absence or
-   irrelevance never blocks the message.
-3. If context is relevant, extract the literal excerpts from it that support that relevance.
-4. Compose the final message strictly from the instructions (and, when relevant, the context excerpts) —
-   never add outside knowledge. The final message MUST always be produced; there is no valid outcome
-   where it is left empty or replaced by a refusal.
-
-Always explain your reasoning, connecting the extracted instruction excerpts (and context excerpts,
-when used) to the final message.`;
+2. If conversation data (context) is provided, extract the literal excerpts from it that could
+   plausibly be relevant to this message — for example, a conflict with the instructions,
+   acknowledging progress, or referencing data already mentioned. Extract before deciding whether
+   they will actually be used.
+3. Explain your reasoning, weighing whether any extracted context excerpt is actually relevant
+   enough to use — context is support only: it is never a requirement, and its absence or
+   irrelevance never blocks the message. Decide context_used based on this reasoning, not before it.
+4. Compose the final message strictly from the instructions (and, when context_used is true, the
+   context excerpts) — never add outside knowledge. The final message MUST always be produced;
+   there is no valid outcome where it is left empty or replaced by a refusal.`;
 
 /**
  * Composes a final message anchored primarily in developer-supplied instructions for

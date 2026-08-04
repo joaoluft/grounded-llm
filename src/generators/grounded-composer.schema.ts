@@ -13,20 +13,20 @@ export const groundedCompositionSchema = z.object({
     .describe(
       'Trechos literais das instructions que determinam a mensagem a ser gerada (nunca vazio).'
     ),
-  context_used: z
-    .boolean()
-    .describe(
-      'Se algo do context (conflito, progresso, dado a referenciar) influenciou a mensagem final.'
-    ),
   context_excerpts: z
     .array(z.string())
     .describe(
-      'Trechos literais do context que sustentam context_used. Vazio quando context_used é false.'
+      'Trechos literais do context potencialmente relevantes, extraídos antes de decidir se serão usados.'
     ),
   reasoning: z
     .string()
     .describe(
-      'Raciocínio conectando as instructions aplicadas (e o context usado, quando houver) à mensagem final.'
+      'Raciocínio conectando as instructions aplicadas (e os context_excerpts, quando relevantes) à decisão de context_used e à mensagem final. Deve ser escrito antes de decidir context_used, não depois.'
+    ),
+  context_used: z
+    .boolean()
+    .describe(
+      'Se algo do context (conflito, progresso, dado a referenciar) influenciou a mensagem final.'
     ),
   final_message: z
     .string()
